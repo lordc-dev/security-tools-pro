@@ -2,7 +2,7 @@
 
 [English](../README.md) | [Español](README.es.md) | [Català](README.ca.md) | [Galego](README.gl.md) | [Euskara](README.eu.md) | **Français** | [Português](README.pt.md)
 
-**Chaque session de sécurité avec l'IA commence de la même façon : vous jonglez entre 10 onglets pour les données CVE, vous lancez des scans manuels et vous copiez les résultats dans des rapports.** Security Tools Pro résout ça. Un seul serveur MCP donne à l'IA 54 outils pour le renseignement sur les vulnérabilités, SAST, reconnaissance, scan de secrets, audit de dépendances, recherche d'exploits et reporting. Confiance zéro par défaut. Compatible avec Claude, Cursor et toute IA compatible MCP.
+**54 outils. Un serveur. Couverture de sécurité complète.** Renseignement sur les vulnérabilités, SAST, reconnaissance, scan de secrets, audit de dépendances, recherche d'exploits et reporting — tout interconnecté pour que l'IA puisse trier, scanner et rapporter sans jongler entre 10 outils CLI et 5 onglets de navigateur.
 
 > **Serveur MCP de sécurité unifié** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit et plus. 54 outils. Un serveur.
 

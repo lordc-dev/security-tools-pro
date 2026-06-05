@@ -2,7 +2,7 @@
 
 [English](../README.md) | **Español** | [Català](README.ca.md) | [Galego](README.gl.md) | [Euskara](README.eu.md) | [Français](README.fr.md) | [Português](README.pt.md)
 
-**Cada sesión de seguridad con IA empieza igual: sales de 10 pestañas para buscar datos CVE, ejecutas escaneos manuales y copias resultados en informes.** Security Tools Pro lo soluciona. Un servidor MCP da a la IA 54 herramientas para inteligencia de vulnerabilidades, SAST, reconocimiento, escaneo de secretos, auditoría de dependencias, investigación de exploits y generación de informes. Confianza cero por defecto. Funciona con Claude, Cursor y cualquier IA compatible con MCP.
+**54 herramientas. Un servidor. Cobertura de seguridad completa.** Inteligencia de vulnerabilidades, SAST, reconocimiento, escaneo de secretos, auditoría de dependencias, investigación de exploits e informes — todo interconectado para que la IA pueda triar, escanear y reportar sin saltar entre 10 herramientas CLI y 5 pestañas del navegador.
 
 > **Servidor MCP de seguridad unificado** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit y más. 54 herramientas. Un servidor.
 
@@ -24,16 +24,16 @@ _Construido y mantenido por:_
 
 ## 54 Herramientas de un Vistazo
 
-| Categoría | Cantidad | Herramientas |
-|-----------|----------|--------------|
-| Inteligencia CVE | 15 | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
-| Análisis CWE | 8 | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all` |
-| SAST (SonarQube) | 8 | `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail` |
-| Reconocimiento | 9 | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping` |
-| Escaneo de Secretos | 3 | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep` |
-| SBOM / Vulnerabilidades | 4 | `sbom_trivy`, `sbom_grype`, `sbom_osv_scan`, `sbom_osv_batch` |
-| Exploits y Ataques | 4 | `exploit_searchsploit`, `exploit_nmap_script`, `exploit_nikto`, `exploit_nuclei` |
-| Informes | 3 | `report_markdown`, `report_jira`, `report_summary` |
+| Categoría               | Cantidad | Herramientas                                                                                                                                                                                                                                                         |
+| ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inteligencia CVE        | 15       | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
+| Análisis CWE            | 8        | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`                                                                                                    |
+| SAST (SonarQube)        | 8        | `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail`                                                                                                                              |
+| Reconocimiento          | 9        | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping`                                                                                               |
+| Escaneo de Secretos     | 3        | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep`                                                                                                                                                                                                          |
+| SBOM / Vulnerabilidades | 4        | `sbom_trivy`, `sbom_grype`, `sbom_osv_scan`, `sbom_osv_batch`                                                                                                                                                                                                        |
+| Exploits y Ataques      | 4        | `exploit_searchsploit`, `exploit_nmap_script`, `exploit_nikto`, `exploit_nuclei`                                                                                                                                                                                     |
+| Informes                | 3        | `report_markdown`, `report_jira`, `report_summary`                                                                                                                                                                                                                   |
 
 ---
 
@@ -81,13 +81,13 @@ Puntuación de riesgo unificada (0–100) calculada en `cve_enrich` y `cve_prior
 risk = min(cvss × 0.4 + kev_30 + epss × 100 + exploit_15 + severity_10, 100)
 ```
 
-| Factor | Puntos |
-|--------|--------|
-| CVSS score × 0.4 | 0–40 |
-| En CISA KEV | +30 |
-| Probabilidad EPSS × 100 | 0–30 |
-| Exploit disponible | +15 |
-| Severidad Crítica/Alta | +10 |
+| Factor                  | Puntos |
+| ----------------------- | ------ |
+| CVSS score × 0.4        | 0–40   |
+| En CISA KEV             | +30    |
+| Probabilidad EPSS × 100 | 0–30   |
+| Exploit disponible      | +15    |
+| Severidad Crítica/Alta  | +10    |
 
 ---
 

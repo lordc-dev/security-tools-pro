@@ -2,7 +2,7 @@
 
 English | [Español](docs/README.es.md) | [Català](docs/README.ca.md) | [Galego](docs/README.gl.md) | [Euskara](docs/README.eu.md) | [Français](docs/README.fr.md) | [Português](docs/README.pt.md)
 
-**Every AI security session starts the same: you juggle 10 tabs for CVE data, run manual scans, and copy-paste results into reports.** Security Tools Pro fixes that. One MCP server gives AI 54 tools for vulnerability intelligence, SAST, recon, secret scanning, dependency auditing, exploit research, and reporting — all from a single server. Zero trust by default. Works with Claude, Cursor, and any MCP-compatible AI.
+**54 tools. One server. Full security coverage.** Vulnerability intel, SAST, recon, secret scanning, dependency auditing, exploit research, and reporting — all wired together so AI can triage, scan, and report without context-switching across 10 CLI tools and 5 browser tabs.
 
 > **Unified security MCP server** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit, and more. 54 tools. One server.
 
