@@ -6,18 +6,33 @@ Unified security MCP server for vulnerability intelligence, SAST (SonarQube), re
 
 ```bash
 cd security-tools-pro
-uv sync              # install dependencies (just mcp[cli])
-uv run server.py     # start MCP server
+cp .env.example .env          # edit with your credentials
+uv sync                        # install dependencies
+uv run server.py               # start MCP server
 ```
+
+## Configuration
+
+Credentials are managed via `.env` file (SSOT — no shell env vars or config files):
+
+```bash
+# .env
+SONARQUBE_URL=http://localhost:9000
+SONARQUBE_TOKEN=squ_xxxxxxxxxxxxx
+```
+
+Copy `.env.example` and fill in your values. See [SAST — SonarQube](#sast--sonarqube-8-tools) for details.
 
 ## Architecture
 
 ```
 security-tools-pro/
-├── server.py              # FastMCP entrypoint — 52 tools registered
+├── server.py              # FastMCP entrypoint — 54 tools registered
 ├── core/
 │   ├── cache.py           # Shared SQLite cache with TTL (thread-safe)
-│   └── models.py          # CVEInfo, CWEInfo, VulnerabilityReport, risk scoring
+│   ├── config.py          # SSOT credential resolution (.env via python-dotenv)
+│   ├── models.py           # CVEInfo, CWEInfo, VulnerabilityReport, risk scoring
+│   └── validation.py       # Input validation (CVE IDs, hosts, ports, etc.)
 ├── modules/
 │   ├── cve.py             # NVD, EPSS, KEV, GHSA, OSV, exploit search clients
 │   ├── cwe.py             # MITRE CWE catalog parser and lookup
@@ -28,12 +43,14 @@ security-tools-pro/
 │   ├── sast.py            # SonarQube SAST (projects, issues, hotspots, quality gate, measures)
 │   ├── exploit.py         # searchsploit, nikto, nuclei, nmap NSE scripts
 │   └── report.py          # Markdown, Jira ticket, CLI summary generation
+├── .env.example           # Template for credentials
+├── .gitignore
 └── pyproject.toml
 ```
 
-## Tools (52 total)
+## Tools (54 total)
 
-### CVE Intelligence (13 tools)
+### CVE Intelligence (15 tools)
 | Tool | Description |
 |------|------------|
 | `cve_enrich` | **Full enrichment** — NVD + EPSS + KEV + GHSA + CWE cross-ref + risk score in one call |
@@ -48,8 +65,11 @@ security-tools-pro/
 | `cve_exploit_search` | Search GitHub for public PoC exploits |
 | `cve_prioritize` | Rank CVEs by risk (CVSS + EPSS + KEV + exploits) |
 | `cve_trending` | Currently trending CVEs by EPSS |
+| `cve_dump_recent` | Dump recent CVEs with full enrichment in one call |
+| `cve_osv_query` | Alias for `sbom_osv_scan` |
+| `cve_osv_batch` | Alias for `sbom_osv_batch` |
 
-### CWE Analysis (7 tools)
+### CWE Analysis (8 tools)
 | Tool | Description |
 |------|------------|
 | `cve_cwe_by_id` | Full CWE definition by ID |
@@ -59,14 +79,15 @@ security-tools-pro/
 | `cve_cwe_related` | Related CWEs (parent, child, variants) |
 | `cve_cwe_consequences` | Impact/consequences for a CWE |
 | `cve_cwe_by_abstraction` | Filter by Pillar/Class/Base/Variant/Compound |
+| `cve_cwe_dump_all` | Dump entire CWE catalog (or filter by abstraction) |
 
-### OSV / Dependency Scanning (3 tools)
-| Tool | Description |
-|------|------------|
-| `cve_osv_query` | Query OSV for package vulnerabilities |
-| `cve_osv_batch` | Batch OSV query for multiple packages |
-| `sbom_osv_scan` | Query OSV for vulnerabilities in a specific package version |
-| `sbom_osv_batch` | Batch scan multiple packages via OSV |
+### OSV / Dependency Scanning (4 tools)
+| Tool | Description | Requires |
+|------|------------|----------|
+| `sbom_osv_scan` | Query OSV for package vulnerabilities | (API) |
+| `sbom_osv_batch` | Batch scan multiple packages via OSV | (API) |
+| `sbom_trivy` | Trivy scan (fs/image/repo) | trivy |
+| `sbom_grype` | Grype vulnerability scan | grype |
 
 ### Reconnaissance (9 tools)
 | Tool | Description | Requires |
@@ -88,14 +109,6 @@ security-tools-pro/
 | `secrets_gitleaks` | Scan git repo for credentials | gitleaks |
 | `secrets_semgrep` | Static analysis for security issues | semgrep |
 
-### SBOM / Vulnerability Scanning (4 tools)
-| Tool | Description | Requires |
-|------|------------|----------|
-| `sbom_trivy` | Trivy scan (fs/image/repo) | trivy |
-| `sbom_grype` | Grype vulnerability scan | grype |
-| `sbom_osv_scan` | OSV package vulnerability query | (API, no install) |
-| `sbom_osv_batch` | OSV batch scan for multiple packages | (API, no install) |
-
 ### Exploit & Attack Tools (4 tools)
 | Tool | Description | Requires |
 |------|------------|----------|
@@ -112,30 +125,23 @@ security-tools-pro/
 | `report_summary` | Compact CLI-friendly findings summary |
 
 ### SAST — SonarQube (8 tools)
-| Tool | Description | Requires |
-|------|-------------|----------|
-| `sast_projects` | List SonarQube projects | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_issues` | Search issues (bugs, vulns, code smells) by project | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_hotspots` | Search security hotspots by project | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_quality_gate` | Get quality gate status (pass/fail + conditions) | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_measures` | Get project metrics (coverage, debt, ratings) | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_health` | Check SonarQube server health and version | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_rules` | Search analysis rules by language/type/severity | SONARQUBE_URL + SONARQUBE_TOKEN |
-| `sast_issue_detail` | Full detail for a specific issue | SONARQUBE_URL + SONARQUBE_TOKEN |
+| Tool | Description |
+|------|-------------|
+| `sast_projects` | List SonarQube projects |
+| `sast_issues` | Search issues (bugs, vulns, code smells) by project |
+| `sast_hotspots` | Search security hotspots by project |
+| `sast_quality_gate` | Get quality gate status (pass/fail + conditions) |
+| `sast_measures` | Get project metrics (coverage, debt, ratings) |
+| `sast_health` | Check SonarQube server health and version |
+| `sast_rules` | Search analysis rules by language/type/severity |
+| `sast_issue_detail` | Full detail for a specific issue |
 
-#### SonarQube Configuration
-
-All SAST tools require two environment variables:
+Configure via `.env`:
 
 ```bash
-export SONARQUBE_URL=https://sonar.example.com
-export SONARQUBE_TOKEN=squ_xxxxxxxxxxxxx
+SONARQUBE_URL=http://localhost:9000
+SONARQUBE_TOKEN=squ_xxxxxxxxxxxxx
 ```
-
-- **SONARQUBE_URL**: Base URL of your SonarQube instance (no trailing slash)
-- **SONARQUBE_TOKEN**: User token with Browse permissions (minimum). Generate at _Profile > Security > Generate Tokens_
-
-Tools return a helpful error message if these are not configured.
 
 ## Risk Scoring Formula
 
@@ -155,42 +161,26 @@ risk = min(cvss * 0.4 + kev_30 + epss * 100 + exploit_15 + severity_10, 100)
 
 ## Security
 
-⚠️ **This MCP server has NO authentication or authorization.** All 44 tools are accessible to any client that can connect. This is acceptable for local/trusted environments (e.g., Claude Desktop, local opencode) but **must not** be exposed on untrusted networks.
+⚠️ **This MCP server has NO authentication or authorization.** All tools are accessible to any client that can connect. This is acceptable for local/trusted environments (e.g., Claude Desktop, local opencode) but **must not** be exposed on untrusted networks.
 
 ### Precautions
 
 - Run only on localhost or trusted networks
-- Use input validation on all tool parameters (implemented in `core/validation.py`)
-- Rate limiting is applied per API endpoint to prevent abuse (`core/cache.py`)
-- Error messages are sanitized — no internal paths or secrets leak to clients
-- Cache database has `0600` permissions (owner read/write only)
+- Input validation on all tool parameters (`core/validation.py`)
+- Rate limiting per API endpoint (`core/cache.py`)
+- Sanitized error messages — no internal paths or secrets leak
+- Cache database with `0600` permissions
+- Credentials read exclusively from `.env` (never from shell env or config files)
 
 ## Key Design Decisions
 
-- **Zero external deps beyond `mcp[cli]`** — all API calls use `urllib.request` (stdlib)
+- **Credentials via `.env` only** — `core/config.py` reads from `.env` using `python-dotenv`, no shell env fallback
+- **Zero external deps beyond `mcp[cli]` and `python-dotenv`** — all API calls use `urllib.request` (stdlib)
 - **SQLite cache with TTL** — avoids rate limits, offline-friendly
 - **CVE→CWE auto cross-ref** — `cve_enrich` fetches full CWE details for every CWE in a CVE, deduplicated
-- **Graceful degradation** — recon/exploit tools check if binary is installed and return clear error messages
-- **All tools prefixed by category** — `cve_`, `recon_`, `secrets_`, `sbom_`, `exploit_`, `report_`
+- **Graceful degradation** — recon/exploit tools check if binary is installed; SAST tools return clear message if credentials missing
+- **All tools prefixed by category** — `cve_`, `recon_`, `secrets_`, `sbom_`, `exploit_`, `report_`, `sast_`
 - **Thread-safe cache** — SQLite WAL mode with mutex for concurrent reads/writes
 - **SSRF protection** — all URLs validated to HTTPS-only; `file://` and other dangerous schemes blocked
 - **Input validation** — CVE IDs, CWE IDs, hostnames, IPs, ports, scan types all validated before use
 - **Rate limiting** — per-API endpoint rate limits prevent quota exhaustion
-
-## Tool Availability Matrix (macOS)
-
-| Tool | Status | Install |
-|------|--------|---------|
-| nmap | ✅ Installed | brew |
-| dig | ✅ Installed | system |
-| curl | ✅ Installed | system |
-| openssl | ✅ Installed | brew |
-| whois | ✅ Available | brew |
-| trufflehog | ❌ Not installed | `brew install trufflehog` |
-| gitleaks | ❌ Not installed | `brew install gitleaks` |
-| semgrep | ❌ Not installed | `pip install semgrep` |
-| trivy | ❌ Not installed | `brew install trivy` |
-| grype | ❌ Not installed | `brew install grype` |
-| searchsploit | ❌ Not installed | `brew install exploitdb` |
-| nikto | ❌ Not installed | `brew install nikto` |
-| nuclei | ❌ Not installed | `brew install nuclei` |

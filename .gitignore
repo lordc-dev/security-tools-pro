@@ -1,5 +1,7 @@
-__pycache__
-.scannerwork
+__pycache__/
+.scannerwork/
 sonar-project.properties
-.venv
+.venv/
 uv.lock
+.env
+*.pyc

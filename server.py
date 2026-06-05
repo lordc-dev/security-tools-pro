@@ -26,8 +26,8 @@ from modules.report import generate_markdown_report, generate_jira_ticket, gener
 from modules.sast import (
     sonar_projects, sonar_issues, sonar_hotspots, sonar_quality_gate,
     sonar_measures, sonar_health, sonar_rules, sonar_issue_detail,
-    _sonar_available,
 )
+from core.config import is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
 from core.models import Severity
 from core.validation import (validate_url_https, safe_error, validate_cve_id,
     validate_cwe_id, validate_host, validate_ports, validate_scan_type,
@@ -145,7 +145,10 @@ def _format_ghsa_result(result: dict) -> str:
     if references:
         out += f"\n**References ({len(references)}):**\n"
         for ref in references:
-            out += f"- {ref.get('url', '?')}\n"
+            if isinstance(ref, dict):
+                out += f"- {ref.get('url', '?')}\n"
+            else:
+                out += f"- {ref}\n"
     return out
 
 
@@ -814,18 +817,12 @@ def report_summary(findings: list[dict]) -> str:
 
 # ── SAST (SonarQube) Tools ──
 
-SONAR_UNAVAILABLE = (
-    "SonarQube not configured. Set SONARQUBE_URL and SONARQUBE_TOKEN "
-    "environment variables.\nExample: export SONARQUBE_URL=https://sonar.example.com "
-    "SONARQUBE_TOKEN=squ_xxxx"
-)
-
 
 @mcp.tool()
 def sast_projects(search: str = "", page: int = 1, page_size: Annotated[int, Field(default=100, validation_alias="pageSize", serialization_alias="pageSize")] = 100) -> str:
     """List SonarQube projects. Optionally filter by name/key. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_projects(search=search, page=page, page_size=page_size)
     except Exception as e:
@@ -846,8 +843,8 @@ def sast_issues(
     pull_request: Annotated[str, Field(default="", validation_alias="pullRequest", serialization_alias="pullRequest")] = "",
 ) -> str:
     """Search SonarQube issues for a project. Filter by severity (BLOCKER,CRITICAL,MAJOR,MINOR,INFO), status (OPEN,CONFIRMED,FALSE_POSITIVE,ACCEPTED), type (BUG,VULNERABILITY,CODE_SMELL,SECURITY_HOTSPOT), rules, tags. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_issues(
             project_key=project_key,
@@ -876,8 +873,8 @@ def sast_hotspots(
     pull_request: Annotated[str, Field(default="", validation_alias="pullRequest", serialization_alias="pullRequest")] = "",
 ) -> str:
     """Search SonarQube security hotspots for a project. Filter by status (TO_REVIEW,REVIEWED), category (SQL_INJECTION,XSS,...). Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_hotspots(
             project_key=project_key,
@@ -899,8 +896,8 @@ def sast_quality_gate(
     pull_request: Annotated[str, Field(default="", validation_alias="pullRequest", serialization_alias="pullRequest")] = "",
 ) -> str:
     """Get SonarQube quality gate status for a project. Shows pass/fail and condition details. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_quality_gate(
             project_key=project_key,
@@ -920,8 +917,8 @@ def sast_measures(
     period: str = "",
 ) -> str:
     """Get SonarQube project measures/metrics (bugs, vulnerabilities, code smells, coverage, tech debt, etc.). Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_measures(
             project_key=project_key,
@@ -937,8 +934,8 @@ def sast_measures(
 @mcp.tool()
 def sast_health() -> str:
     """Check SonarQube server health and version. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_health()
     except Exception as e:
@@ -956,8 +953,8 @@ def sast_rules(
     page_size: Annotated[int, Field(default=50, validation_alias="pageSize", serialization_alias="pageSize")] = 50,
 ) -> str:
     """Search SonarQube analysis rules. Filter by language (java,py,js,ts,...), type (BUG,VULNERABILITY,CODE_SMELL,SECURITY_HOTSPOT), severity, tags. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_rules(
             language=language,
@@ -975,8 +972,8 @@ def sast_rules(
 @mcp.tool()
 def sast_issue_detail(issue_key: Annotated[str, Field(validation_alias="issueKey", serialization_alias="issueKey")]) -> str:
     """Get detailed information about a specific SonarQube issue including location, rule, severity, debt, and comments. Requires SONARQUBE_URL and SONARQUBE_TOKEN env vars."""
-    if not _sonar_available():
-        return SONAR_UNAVAILABLE
+    if not is_sonarqube_available():
+        return SONARQUBE_UNAVAILABLE_MSG
     try:
         return sonar_issue_detail(issue_key=issue_key)
     except Exception as e:

@@ -2,28 +2,23 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import urllib.request
 import urllib.error
 import urllib.parse
 from core.cache import get_json, set_json, rate_limit
+from core.config import get_sonarqube_credentials, is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
 from core.validation import safe_error, validate_url_https
 
-_SONAR_URL = os.environ.get("SONARQUBE_URL", "").rstrip("/")
 
-
-def _sonar_available() -> bool:
-    return bool(_SONAR_URL and os.environ.get("SONARQUBE_TOKEN"))
+def sonar_available() -> bool:
+    return is_sonarqube_available()
 
 
 def _sonar_require() -> tuple[str, str]:
-    token = os.environ.get("SONARQUBE_TOKEN", "")
-    if not _SONAR_URL or not token:
-        raise RuntimeError(
-            "SonarQube not configured. Set SONARQUBE_URL and SONARQUBE_TOKEN environment variables.\n"
-            "Example: export SONARQUBE_URL=https://sonar.example.com SONARQUBE_TOKEN=squ_xxxx"
-        )
-    return _SONAR_URL, token
+    url, token = get_sonarqube_credentials()
+    if not url or not token:
+        raise RuntimeError(SONARQUBE_UNAVAILABLE_MSG)
+    return url, token
 
 
 def _fetch(url: str, token: str = "", timeout: int = 30) -> dict | list | None:
