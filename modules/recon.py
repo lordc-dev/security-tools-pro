@@ -59,11 +59,12 @@ def nmap_scan(target: str, ports: str = "", scan_type: str = "service", extra_ar
 
 def nmap_vuln_scan(target: str, ports: str = "") -> str:
     """Run nmap vulnerability scan using NSE vuln scripts."""
-    cmd = ["nmap", "--script", "vuln", "-T4"]
+    cmd = ["nmap", "--script", "vuln", "-T5", "--max-rtt-timeout", "100ms", "--max-retries", "2"]
     if ports:
         cmd += ["-p", ports]
     else:
-        cmd += ["--top-ports", "100"]
+        # Default: top 20 ports only (vuln scripts are slow; 100 ports can exceed MCP timeout)
+        cmd += ["--top-ports", "20"]
     cmd.append(target)
     result = _run(cmd, timeout=300)
     if result.get("error"):
@@ -97,11 +98,24 @@ def http_headers(url: str, _method: str = "HEAD") -> str:
     """Fetch HTTP headers for a URL. Checks security headers (HSTS, CSP, X-Frame-Options, etc.)."""
     cmd = ["curl", "-sI", "-L", "--max-time", "15", url]
     result = _run(cmd, timeout=20)
-    if result.get("error"):
-        return f"Error: {result['error']}"
-    if result["returncode"] != 0 and not result["stdout"]:
-        return f"curl failed: {result['stderr'][:500]}"
-    headers_raw = result["stdout"]
+    headers_raw = ""
+    if result.get("error") or (result["returncode"] != 0 and not result["stdout"]):
+        # Fallback: Python urllib (handles TLS fingerprint issues with some CDNs)
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                headers_raw = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
+        except Exception:
+            # Last resort: GET with range header (some servers reject HEAD)
+            try:
+                req = urllib.request.Request(url, headers={"Range": "bytes=0-0"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    headers_raw = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
+            except Exception as e:
+                err = result.get("error") or result.get("stderr", "")[:500] or str(e)
+                return f"curl and urllib both failed: {err}"
+    else:
+        headers_raw = result["stdout"]
     headers = {}
     for line in headers_raw.split("\n"):
         if ":" in line:
@@ -173,6 +187,7 @@ def _ssl_error_msg(hostname: str, port: int, error: Exception) -> str:
 
 
 def ssl_check(hostname: str, port: int = 443) -> str:
+    # First attempt: strict validation (default TLS config)
     context = ssl.create_default_context()
     context.check_hostname = True
     context.verify_mode = ssl.CERT_REQUIRED
@@ -183,8 +198,51 @@ def ssl_check(hostname: str, port: int = 443) -> str:
                 protocol = ssock.version()
                 cipher = ssock.cipher()
         return _ssl_format_cert(hostname, port, cert, protocol, cipher)
+    except Exception as strict_err:
+        # Fallback: relaxed TLS (handles Cloudflare/CDN connection resets on old LibreSSL).
+        # Some CDNs reset TLS connections when client offers TLS 1.3 with old fingerprint.
+        # Retry with relaxed context to still extract cert info for the user.
+        try:
+            ctx2 = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx2.check_hostname = False
+            ctx2.verify_mode = ssl.CERT_NONE
+            with socket.create_connection((hostname, port), timeout=10) as sock:
+                with ctx2.wrap_socket(sock, server_hostname=hostname) as ssock:
+                    cert = ssock.getpeercert()
+                    protocol = ssock.version()
+                    cipher = ssock.cipher()
+                    cert_bin = ssock.getpeercert(True)
+            if cert:
+                out = _ssl_format_cert(hostname, port, cert, protocol, cipher)
+                out += "\n*Note: Certificate verification was relaxed (strict mode failed). Verify manually.*\n"
+                return out
+            if cert_bin:
+                return _ssl_parse_der_via_openssl(hostname, port, cert_bin, protocol, cipher)
+            return _ssl_error_msg(hostname, port, strict_err)
+        except Exception:
+            return _ssl_error_msg(hostname, port, strict_err)
+
+
+def _ssl_parse_der_via_openssl(hostname: str, port: int, cert_bin: bytes, protocol: str, cipher: tuple) -> str:
+    """Parse DER cert via openssl subprocess when Python ssl cant return dict (unverified)."""
+    import tempfile, os
+    out = f"## SSL/TLS Certificate for {hostname}:{port} (relaxed verification)\n\n"
+    out += f"**Protocol:** {protocol}\n"
+    out += f"**Cipher:** {cipher[0]} ({cipher[2]} bits)\n\n"
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".der", delete=False) as f:
+            f.write(cert_bin)
+            tmp_path = f.name
+        try:
+            r = _run(["openssl", "x509", "-inform", "DER", "-in", tmp_path, "-noout", "-subject", "-issuer", "-dates", "-ext", "subjectAltName"], timeout=10)
+            if r.get("stdout"):
+                out += r["stdout"]
+            out += "\n*Note: Certificate verification was relaxed (strict mode failed). Verify manually.*\n"
+        finally:
+            os.unlink(tmp_path)
     except Exception as e:
-        return _ssl_error_msg(hostname, port, e)
+        out += f"*(could not parse cert via openssl: {e})*\n"
+    return out
 
 
 _WHOIS_KEYS = [
