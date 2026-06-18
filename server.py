@@ -14,7 +14,7 @@ SEP = "\n---\n"
 
 mcp = FastMCP("security-tools-pro")
 
-from modules.cwe import get_cwe, search_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes
+from modules.cwe import get_cwe, search_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes, get_cwe_version as _get_cwe_version
 from modules.cve import (
     nvd_get, nvd_search, nvd_recent, epss_score, kev_check, kev_recent,
     ghsa_get, ghsa_search, osv_query, osv_get, osv_batch, exploit_search,
@@ -27,13 +27,13 @@ from modules.sast import (
     sonar_projects, sonar_issues, sonar_hotspots, sonar_quality_gate,
     sonar_measures, sonar_health, sonar_rules, sonar_issue_detail,
 )
-from modules.audit import audit_repo as _audit_repo
+from modules.audit import audit_repo as _audit_repo, resolve_preset as _resolve_preset, SEMGREP_PRESETS
 from core.config import is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
 from core.models import Severity
 from core.validation import (validate_url_https, safe_error, validate_cve_id,
     validate_cwe_id, validate_host, validate_ports, validate_scan_type,
     validate_nmap_script, validate_semgrep_config, validate_report_format,
-    validate_severity, validate_directory)
+    validate_severity, validate_directory, validate_audit_output_format)
 import json
 import re
 
@@ -985,25 +985,27 @@ def sast_issue_detail(issue_key: Annotated[str, Field(validation_alias="issueKey
 
 
 @mcp.tool()
-def sast_semgrep(directory: str, config: str = "p/owasp-top-ten", extra_args: list[str] | None = None) -> str:
-    """Run semgrep as a SAST (Static Application Security Testing) tool. Configs: 'p/owasp-top-ten', 'p/security-audit', 'p/ci', 'p/xss', 'p/sql-injection', etc. No infrastructure needed — runs locally with semgrep ruleset."""
+def sast_semgrep(directory: str, config: str = "owasp", extra_args: list[str] | None = None) -> str:
+    """Run semgrep as a SAST (Static Application Security Testing) tool. Presets: 'owasp' (p/owasp-top-ten), 'audit' (p/security-audit), 'ci' (p/ci), 'secrets' (p/secrets), 'xss', 'sqli', 'default', 'auto'. Also accepts raw p/* rulesets. No infrastructure needed — runs locally."""
     try:
         directory = validate_directory(directory)
         config = validate_semgrep_config(config)
     except ValueError as e:
         return str(e)
+    from modules.secrets import semgrep_scan
     return semgrep_scan(directory, config=config, extra_args=extra_args)
 
 
 @mcp.tool()
-def audit_repo(directory: str, sast_config: str = "p/owasp-top-ten", include_deps: bool = True, include_secrets: bool = True) -> str:
-    """Run a full security audit of a local repository in one call: secrets scan (gitleaks) + SAST (semgrep) + dependency scan (trivy). Returns unified findings with severity counts and per-scanner sections. No infrastructure needed."""
+def audit_repo(directory: str, sast_config: str = "owasp", include_deps: bool = True, include_secrets: bool = True, output_format: str = "markdown") -> str:
+    """Run a full security audit of a local repository in one call. Scanners run in PARALLEL (gitleaks + semgrep + trivy) for ~60% faster results. Returns unified findings with severity counts. Output formats: 'markdown' (default), 'sarif' (GitHub Security tab / VSCode), 'sarif+markdown' (both). Presets: 'owasp', 'audit', 'ci', 'secrets', 'xss', 'sqli'. No infrastructure needed."""
     try:
         directory = validate_directory(directory)
         config = validate_semgrep_config(sast_config)
+        output_format = validate_audit_output_format(output_format)
     except ValueError as e:
         return str(e)
-    return _audit_repo(directory, sast_config=config, include_deps=include_deps, include_secrets=include_secrets)
+    return _audit_repo(directory, sast_config=config, include_deps=include_deps, include_secrets=include_secrets, output_format=output_format)
 
 
 @mcp.tool()
@@ -1013,11 +1015,13 @@ def report_sarif(findings: list[dict], title: str = "Security Assessment Report"
 
 
 @mcp.tool()
-def tool_health() -> str:
-    """Check which security binary tools are installed and which are missing. Returns install hints for missing tools. Run this first to know which tools are available before starting an audit."""
+def tool_health(fix: bool = False) -> str:
+    """Check which security binary tools are installed and which are missing. Returns install hints for missing tools. Set fix=True to auto-install missing tools via brew/pip. Run this first to know which tools are available before starting an audit."""
     from modules.audit import tool_health as _tool_health
-    data = _tool_health()
+    data = _tool_health(fix=fix)
     out = "## Tool Health Check\n\n"
+    if fix:
+        out += "*Auto-install attempted for missing tools.*\n\n"
     out += f"**Available:** {data['available_count']}/{data['total']}\n\n"
     if data['available']:
         out += "### ✅ Installed\n\n"
@@ -1026,11 +1030,24 @@ def tool_health() -> str:
             out += f"| {tool} | {info['used_by']} |\n"
     if data['missing']:
         out += "\n### ❌ Missing\n\n"
-        out += "| Tool | Used By | Install |\n|------|---------|---------|\n"
+        out += "| Tool | Used By | Install | Status |\n|------|---------|---------|--------|\n"
         for tool, info in sorted(data['missing'].items()):
-            out += f"| {tool} | {info['used_by']} | `{info['install']}` |\n"
+            status = info.get('fix_result', info['install']) if fix else info['install']
+            out += f"| {tool} | {info['used_by']} | `{info['install']}` | {status} |\n"
     if not data['available'] and not data['missing']:
         out += "No tools checked.\n"
+    return out
+
+
+@mcp.tool()
+def cve_cwe_version() -> str:
+    """Get the MITRE CWE catalog version info from the cache: SHA-256 hash of the downloaded CSV, fetch timestamp, and source URL. Useful for reproducibility — know exactly which CWE catalog version your results are based on."""
+    data = _get_cwe_version()
+    out = "## CWE Catalog Version\n\n"
+    out += f"- **Source URL:** {data['source_url']}\n"
+    out += f"- **SHA-256:** `{data['sha256']}`\n"
+    out += f"- **Fetched At:** {data['fetched_at']}\n"
+    out += f"- **Cache TTL:** {int(data['cache_ttl_seconds'])}s ({int(data['cache_ttl_seconds'] // 3600)}h)\n"
     return out
 
 

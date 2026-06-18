@@ -7,9 +7,10 @@ import os
 import re
 import urllib.request
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-from core.cache import set_json, get_json
+from core.cache import set_json, get_json, get_config, set_config
 from core.models import CWEInfo
 from core.validation import validate_url_https
 
@@ -272,10 +273,10 @@ def _load_data() -> list[dict]:
         return []
     resp = urllib.request.urlopen(CWE_CSV_URL, timeout=60)
     raw = resp.read()
+    content_hash = hashlib.sha256(raw).hexdigest()
     if CWE_CSV_SHA256:
-        actual = hashlib.sha256(raw).hexdigest()
-        if actual != CWE_CSV_SHA256:
-            raise ValueError(f"CWE CSV integrity check failed. Expected {CWE_CSV_SHA256[:16]}... got {actual[:16]}...")
+        if content_hash != CWE_CSV_SHA256:
+            raise ValueError(f"CWE CSV integrity check failed. Expected {CWE_CSV_SHA256[:16]}... got {content_hash[:16]}...")
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
         csv_name = [n for n in zf.namelist() if n.endswith(".csv")][0]
         with zf.open(csv_name) as f:
@@ -283,7 +284,19 @@ def _load_data() -> list[dict]:
             rows = list(reader)
 
     set_json("cwe:catalog", rows, TTL)
+    set_config("cwe:catalog:sha256", content_hash)
+    set_config("cwe:catalog:fetched_at", datetime.now(timezone.utc).isoformat())
+    set_config("cwe:catalog:url", CWE_CSV_URL)
     return rows
+
+
+def get_cwe_version() -> dict:
+    return {
+        "sha256": get_config("cwe:catalog:sha256", "unknown"),
+        "fetched_at": get_config("cwe:catalog:fetched_at", "unknown"),
+        "source_url": get_config("cwe:catalog:url", CWE_CSV_URL),
+        "cache_ttl_seconds": TTL,
+    }
 
 
 def _find_by_id(cwe_id: int) -> dict | None:

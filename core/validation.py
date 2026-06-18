@@ -42,8 +42,10 @@ SEMGREP_CONFIGS = {
     "auto", "p/security-audit", "p/owasp-top-ten", "p/secrets",
     "p/ci", "p/default", "p/jwt", "p/xss", "p/sql-injection",
     "p/command-injection", "p/insecure-transport", "p/typing",
+    "owasp", "audit", "ci", "secrets", "xss", "sqli", "default",
 }
 REPORT_FORMATS = {"json", "sarif", "csv", "txt"}
+AUDIT_OUTPUT_FORMATS = {"markdown", "sarif", "sarif+markdown"}
 
 
 def validate_cve_id(cve_id: str) -> str:
@@ -119,11 +121,20 @@ def validate_nmap_script(script: str) -> str:
 
 
 def validate_semgrep_config(config: str) -> str:
+    from modules.audit import SEMGREP_PRESETS
+    if config in SEMGREP_PRESETS:
+        return config
     if config in SEMGREP_CONFIGS:
         return config
     if config.startswith("p/") and re.match(r"^[a-zA-Z0-9_/\-]+$", config):
         return config
-    raise ValueError(f"Invalid semgrep config: {config!r}")
+    raise ValueError(f"Invalid semgrep config: {config!r}. Use a preset (owasp, audit, ci, secrets, xss, sqli) or a p/* ruleset.")
+
+
+def validate_audit_output_format(fmt: str) -> str:
+    if fmt not in AUDIT_OUTPUT_FORMATS:
+        raise ValueError(f"Invalid audit output format: {fmt!r}. Must be one of: {', '.join(sorted(AUDIT_OUTPUT_FORMATS))}")
+    return fmt
 
 
 def validate_report_format(fmt: str) -> str:
