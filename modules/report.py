@@ -128,3 +128,89 @@ def generate_cli_summary(findings: list[dict]) -> str:
         out += "\n"
 
     return out
+
+
+_SARIF_SEVERITY_MAP = {
+    "CRITICAL": "error",
+    "HIGH": "error",
+    "MEDIUM": "warning",
+    "LOW": "note",
+    "INFO": "none",
+}
+
+
+def _sarif_level(severity: str) -> str:
+    return _SARIF_SEVERITY_MAP.get((severity or "").upper(), "none")
+
+
+def _sarif_rule(finding: dict, idx: int) -> dict:
+    title = finding.get("title", f"Finding {idx}")
+    rule_id = f"SEC{idx:03d}"
+    return {
+        "id": rule_id,
+        "name": title[:200],
+        "shortDescription": {"text": title[:200]},
+        "fullDescription": {"text": finding.get("description", "")[:1000]},
+        "helpUri": (finding.get("references") or [""])[0] if finding.get("references") else "",
+        "defaultConfiguration": {"level": _sarif_level(finding.get("severity", "INFO"))},
+    }
+
+
+def _sarif_result(finding: dict, idx: int) -> dict:
+    title = finding.get("title", f"Finding {idx}")
+    comp = finding.get("affected_component", "")
+    path = comp.split(":")[0] if ":" in comp else comp or "unknown"
+    line = None
+    if ":" in comp:
+        try:
+            line = int(comp.split(":", 1)[1])
+        except (ValueError, IndexError):
+            line = None
+    loc = {
+        "physicalLocation": {
+            "artifactLocation": {"uri": path},
+        }
+    }
+    if line:
+        loc["physicalLocation"]["region"] = {"startLine": line}
+    return {
+        "ruleId": f"SEC{idx:03d}",
+        "level": _sarif_level(finding.get("severity", "INFO")),
+        "message": {"text": title},
+        "locations": [loc],
+        "partialFingerprints": {
+            "primaryLocationLineHash": title[:64],
+        },
+    }
+
+
+def generate_sarif_report(findings: list[dict], title: str = "Security Assessment Report") -> str:
+    rules = []
+    results = []
+    for i, f in enumerate(findings, 1):
+        rules.append(_sarif_rule(f, i))
+        results.append(_sarif_result(f, i))
+    sarif = {
+        "$schema": "https://json.schema.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "security-tools-pro",
+                        "version": "1.0.0",
+                        "informationUri": "https://github.com/albertocastrootero/security-tools-pro",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "endTimeUtc": datetime.now(timezone.utc).isoformat(),
+                    }
+                ],
+            }
+        ],
+    }
+    return json.dumps(sarif, indent=2, ensure_ascii=False)

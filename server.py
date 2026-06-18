@@ -22,11 +22,12 @@ from modules.cve import (
 )
 from modules.crossref import enrich_cve, format_report
 from modules.exploit import searchsploit, nmap_script_scan, nikto_scan, nuclei_scan
-from modules.report import generate_markdown_report, generate_jira_ticket, generate_cli_summary
+from modules.report import generate_markdown_report, generate_jira_ticket, generate_cli_summary, generate_sarif_report
 from modules.sast import (
     sonar_projects, sonar_issues, sonar_hotspots, sonar_quality_gate,
     sonar_measures, sonar_health, sonar_rules, sonar_issue_detail,
 )
+from modules.audit import audit_repo as _audit_repo
 from core.config import is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
 from core.models import Severity
 from core.validation import (validate_url_https, safe_error, validate_cve_id,
@@ -280,8 +281,8 @@ def _format_prioritize_detail(r: dict) -> str:
 
 
 @mcp.tool()
-def cve_prioritize(cves: list[str]) -> str:
-    """Rank a list of CVEs by exploitation risk. Combines CVSS score, EPSS probability, and KEV status into a unified risk score. Higher score = patch first."""
+def cve_prioritize(cves: list[str], weights: dict | None = None) -> str:
+    """Rank a list of CVEs by exploitation risk. Combines CVSS score, EPSS probability, and KEV status into a unified risk score. Higher score = patch first. Optional `weights` dict overrides defaults: {cvss: 0.4, kev: 30.0, epss_cap: 30.0, exploit: 15.0, severity: 10.0}."""
     validated = []
     for c in cves:
         try:
@@ -290,7 +291,7 @@ def cve_prioritize(cves: list[str]) -> str:
             continue
     if not validated:
         return "No valid CVE IDs provided."
-    results = prioritize_cves(validated)
+    results = prioritize_cves(validated, weights=weights)
     if not results:
         return "No results."
     out = f"## CVE Prioritization ({len(results)} CVEs, sorted by risk)\n\n"
@@ -305,13 +306,16 @@ def cve_prioritize(cves: list[str]) -> str:
 
 
 @mcp.tool()
-def cve_enrich(cve_id: Annotated[str, Field(validation_alias="cveId", serialization_alias="cveId")]) -> str:
-    """Full CVE enrichment — queries NVD, EPSS, KEV, GitHub Advisory, and cross-references all associated CWEs in a single call. Returns CVSS, exploitation probability, KEV status, affected packages, and a computed risk score."""
+def cve_enrich(
+    cve_id: Annotated[str, Field(validation_alias="cveId", serialization_alias="cveId")],
+    weights: dict | None = None,
+) -> str:
+    """Full CVE enrichment — queries NVD, EPSS, KEV, GitHub Advisory, and cross-references all associated CWEs in a single call. Returns CVSS, exploitation probability, KEV status, affected packages, and a computed risk score. Optional `weights` dict overrides defaults: {cvss: 0.4, kev: 30.0, epss_cap: 30.0, exploit: 15.0, severity: 10.0}."""
     try:
         cve_id = validate_cve_id(cve_id)
     except ValueError as e:
         return str(e)
-    report = enrich_cve(cve_id)
+    report = enrich_cve(cve_id, weights=weights)
     if report is None:
         return f"{cve_id} not found in NVD."
     return format_report(report)
@@ -351,14 +355,14 @@ def _format_dump_enriched_detail(r: dict) -> str:
 
 
 @mcp.tool()
-def cve_dump_recent(days: int = 7, severity: str | None = None, limit: int = 20) -> str:
-    """Dump recently published CVEs with FULL enrichment (NVD+EPSS+KEV+GHSA+exploits+risk score) in a single call. The AI then decides what's important. Much more efficient than calling individual tools separately."""
+def cve_dump_recent(days: int = 7, severity: str | None = None, limit: int = 20, weights: dict | None = None) -> str:
+    """Dump recently published CVEs with FULL enrichment (NVD+EPSS+KEV+GHSA+exploits+risk score) in a single call. The AI then decides what's important. Much more efficient than calling individual tools separately. Optional `weights` dict overrides risk scoring defaults."""
     try:
         if severity:
             severity = validate_severity(severity)
     except ValueError as e:
         return str(e)
-    results = dump_enriched_recent(days=days, severity=severity, limit=limit)
+    results = dump_enriched_recent(days=days, severity=severity, limit=limit, weights=weights)
     if not results:
         return "No recent CVEs found."
     out = f"## Enriched CVEs (last {days} days, {len(results)} CVEs, sorted by risk)\n\n"
@@ -978,6 +982,56 @@ def sast_issue_detail(issue_key: Annotated[str, Field(validation_alias="issueKey
         return sonar_issue_detail(issue_key=issue_key)
     except Exception as e:
         return f"Error: {safe_error(str(e)[:300])}"
+
+
+@mcp.tool()
+def sast_semgrep(directory: str, config: str = "p/owasp-top-ten", extra_args: list[str] | None = None) -> str:
+    """Run semgrep as a SAST (Static Application Security Testing) tool. Configs: 'p/owasp-top-ten', 'p/security-audit', 'p/ci', 'p/xss', 'p/sql-injection', etc. No infrastructure needed — runs locally with semgrep ruleset."""
+    try:
+        directory = validate_directory(directory)
+        config = validate_semgrep_config(config)
+    except ValueError as e:
+        return str(e)
+    return semgrep_scan(directory, config=config, extra_args=extra_args)
+
+
+@mcp.tool()
+def audit_repo(directory: str, sast_config: str = "p/owasp-top-ten", include_deps: bool = True, include_secrets: bool = True) -> str:
+    """Run a full security audit of a local repository in one call: secrets scan (gitleaks) + SAST (semgrep) + dependency scan (trivy). Returns unified findings with severity counts and per-scanner sections. No infrastructure needed."""
+    try:
+        directory = validate_directory(directory)
+        config = validate_semgrep_config(sast_config)
+    except ValueError as e:
+        return str(e)
+    return _audit_repo(directory, sast_config=config, include_deps=include_deps, include_secrets=include_secrets)
+
+
+@mcp.tool()
+def report_sarif(findings: list[dict], title: str = "Security Assessment Report") -> str:
+    """Generate a SARIF 2.1.0 report from findings. SARIF is the industry standard format for security results — can be uploaded to GitHub Security tab, VSCode, Azure DevOps, or any SARIF-compatible tool. Each finding dict: {title, severity, description, cve_ids, cwe_ids, affected_component, remediation, references}."""
+    return generate_sarif_report(findings, title=title)
+
+
+@mcp.tool()
+def tool_health() -> str:
+    """Check which security binary tools are installed and which are missing. Returns install hints for missing tools. Run this first to know which tools are available before starting an audit."""
+    from modules.audit import tool_health as _tool_health
+    data = _tool_health()
+    out = "## Tool Health Check\n\n"
+    out += f"**Available:** {data['available_count']}/{data['total']}\n\n"
+    if data['available']:
+        out += "### ✅ Installed\n\n"
+        out += "| Tool | Used By |\n|------|---------|\n"
+        for tool, info in sorted(data['available'].items()):
+            out += f"| {tool} | {info['used_by']} |\n"
+    if data['missing']:
+        out += "\n### ❌ Missing\n\n"
+        out += "| Tool | Used By | Install |\n|------|---------|---------|\n"
+        for tool, info in sorted(data['missing'].items()):
+            out += f"| {tool} | {info['used_by']} | `{info['install']}` |\n"
+    if not data['available'] and not data['missing']:
+        out += "No tools checked.\n"
+    return out
 
 
 if __name__ == "__main__":
