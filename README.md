@@ -2,9 +2,9 @@
 
 English | [Español](docs/README.es.md) | [Català](docs/README.ca.md) | [Galego](docs/README.gl.md) | [Euskara](docs/README.eu.md) | [Français](docs/README.fr.md) | [Português](docs/README.pt.md)
 
-**54 tools. One server. Full security coverage.** Vulnerability intel, SAST, recon, secret scanning, dependency auditing, exploit research, and reporting — all wired together so AI can triage, scan, and report without context-switching across 10 CLI tools and 5 browser tabs.
+**58 tools. One server. Full security coverage.** Vulnerability intel, SAST, recon, secret scanning, dependency auditing, exploit research, and reporting — all wired together so AI can triage, scan, and report without context-switching across 10 CLI tools and 5 browser tabs.
 
-> **Unified security MCP server** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit, and more. 54 tools. One server.
+> **Unified security MCP server** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit, and more. 58 tools. One server.
 
 _Built and maintained by:_
 
@@ -22,18 +22,19 @@ _Built and maintained by:_
 
 ---
 
-## 54 Tools at a Glance
+## 58 Tools at a Glance
 
-| Category | Count | Tools |
-|----------|-------|-------|
-| CVE Intelligence | 15 | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
-| CWE Analysis | 8 | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all` |
-| SAST (SonarQube) | 8 | `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail` |
-| Reconnaissance | 9 | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping` |
-| Secrets Scanning | 3 | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep` |
-| SBOM / Vuln Scanning | 4 | `sbom_trivy`, `sbom_grype`, `sbom_osv_scan`, `sbom_osv_batch` |
-| Exploit & Attack | 4 | `exploit_searchsploit`, `exploit_nmap_script`, `exploit_nikto`, `exploit_nuclei` |
-| Reporting | 3 | `report_markdown`, `report_jira`, `report_summary` |
+| Category             | Count | Tools                                                                                                                                                                                                                                                                |
+| -------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CVE Intelligence     | 15    | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
+| CWE Analysis         | 8     | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`                                                                                                    |
+| SAST                 | 9     | `sast_semgrep`, `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail`                                                                                                              |
+| Reconnaissance       | 9     | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping`                                                                                               |
+| Secrets Scanning     | 3     | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep`                                                                                                                                                                                                          |
+| SBOM / Vuln Scanning | 4     | `sbom_trivy`, `sbom_grype`, `sbom_osv_scan`, `sbom_osv_batch`                                                                                                                                                                                                        |
+| Exploit & Attack     | 4     | `exploit_searchsploit`, `exploit_nmap_script`, `exploit_nikto`, `exploit_nuclei`                                                                                                                                                                                     |
+| Reporting            | 4     | `report_markdown`, `report_sarif`, `report_jira`, `report_summary`                                                                                                                                                                                                   |
+| Orchestration        | 2     | `audit_repo`, `tool_health`                                                                                                                                                                                                                                          |
 
 ---
 
@@ -77,7 +78,7 @@ Add to your MCP client config:
 
 ```
 security-tools-pro/
-├── server.py              # FastMCP entrypoint — 54 tools
+├── server.py              # FastMCP entrypoint — 58 tools
 ├── core/
 │   ├── config.py          # SSOT credential resolution (.env via python-dotenv)
 │   ├── cache.py           # SQLite cache with TTL (thread-safe)
@@ -104,97 +105,111 @@ security-tools-pro/
 
 ### CVE Intelligence (15 tools)
 
-| Tool | Description | Source |
-|------|-------------|--------|
-| `cve_enrich` | **Full enrichment** — NVD + EPSS + KEV + GHSA + CWE + risk score in one call | NVD, EPSS, CISA, GHSA |
-| `cve_nvd_get` | CVE details (CVSS, CPEs, references) | NVD |
-| `cve_nvd_search` | Search NVD by keyword, severity, date | NVD |
-| `cve_nvd_recent` | Recently published/modified CVEs | NVD |
-| `cve_epss_score` | Exploitation probability for CVE(s) | FIRST EPSS |
-| `cve_kev_check` | Check if CVE(s) are in CISA KEV (actively exploited) | CISA |
-| `cve_kev_recent` | Recently added KEV entries | CISA |
-| `cve_ghsa_get` | GitHub Advisory details by GHSA/CVE ID | GitHub |
-| `cve_ghsa_search` | Search GitHub Advisory DB | GitHub |
-| `cve_exploit_search` | Search GitHub for public PoC exploits | GitHub |
-| `cve_prioritize` | Rank CVEs by risk (CVSS + EPSS + KEV + exploits) | Multi-source |
-| `cve_trending` | Currently trending CVEs by EPSS | EPSS |
-| `cve_dump_recent` | Dump recent CVEs with full enrichment in one call | Multi-source |
-| `cve_osv_query` | Query OSV for package vulnerabilities | OSV |
-| `cve_osv_batch` | Batch OSV query for multiple packages | OSV |
+| Tool                 | Description                                                                  | Source                |
+| -------------------- | ---------------------------------------------------------------------------- | --------------------- |
+| `cve_enrich`         | **Full enrichment** — NVD + EPSS + KEV + GHSA + CWE + risk score in one call | NVD, EPSS, CISA, GHSA |
+| `cve_nvd_get`        | CVE details (CVSS, CPEs, references)                                         | NVD                   |
+| `cve_nvd_search`     | Search NVD by keyword, severity, date                                        | NVD                   |
+| `cve_nvd_recent`     | Recently published/modified CVEs                                             | NVD                   |
+| `cve_epss_score`     | Exploitation probability for CVE(s)                                          | FIRST EPSS            |
+| `cve_kev_check`      | Check if CVE(s) are in CISA KEV (actively exploited)                         | CISA                  |
+| `cve_kev_recent`     | Recently added KEV entries                                                   | CISA                  |
+| `cve_ghsa_get`       | GitHub Advisory details by GHSA/CVE ID                                       | GitHub                |
+| `cve_ghsa_search`    | Search GitHub Advisory DB                                                    | GitHub                |
+| `cve_exploit_search` | Search GitHub for public PoC exploits                                        | GitHub                |
+| `cve_prioritize`     | Rank CVEs by risk (CVSS + EPSS + KEV + exploits)                             | Multi-source          |
+| `cve_trending`       | Currently trending CVEs by EPSS                                              | EPSS                  |
+| `cve_dump_recent`    | Dump recent CVEs with full enrichment in one call                            | Multi-source          |
+| `cve_osv_query`      | Query OSV for package vulnerabilities                                        | OSV                   |
+| `cve_osv_batch`      | Batch OSV query for multiple packages                                        | OSV                   |
 
 ### CWE Analysis (8 tools)
 
-| Tool | Description |
-|------|-------------|
-| `cve_cwe_by_id` | Full CWE definition by ID |
-| `cve_cwe_search` | Search CWE catalog by keyword |
-| `cve_cwe_list` | List/filter CWEs |
-| `cve_cwe_mitigations` | Structured mitigations for a CWE |
-| `cve_cwe_related` | Related CWEs (parent, child, variants) |
-| `cve_cwe_consequences` | Impact/consequences for a CWE |
-| `cve_cwe_by_abstraction` | Filter by Pillar/Class/Base/Variant/Compound |
-| `cve_cwe_dump_all` | Dump entire CWE catalog (or filter by abstraction) |
+| Tool                     | Description                                        |
+| ------------------------ | -------------------------------------------------- |
+| `cve_cwe_by_id`          | Full CWE definition by ID                          |
+| `cve_cwe_search`         | Search CWE catalog by keyword                      |
+| `cve_cwe_list`           | List/filter CWEs                                   |
+| `cve_cwe_mitigations`    | Structured mitigations for a CWE                   |
+| `cve_cwe_related`        | Related CWEs (parent, child, variants)             |
+| `cve_cwe_consequences`   | Impact/consequences for a CWE                      |
+| `cve_cwe_by_abstraction` | Filter by Pillar/Class/Base/Variant/Compound       |
+| `cve_cwe_dump_all`       | Dump entire CWE catalog (or filter by abstraction) |
 
 ### SAST — SonarQube (8 tools)
 
-| Tool | Description |
-|------|-------------|
-| `sast_projects` | List SonarQube projects |
-| `sast_issues` | Search issues (bugs, vulns, code smells) by project |
-| `sast_hotspots` | Search security hotspots by project |
-| `sast_quality_gate` | Get quality gate status (pass/fail + conditions) |
-| `sast_measures` | Get project metrics (coverage, debt, ratings) |
-| `sast_health` | Check SonarQube server health and version |
-| `sast_rules` | Search analysis rules by language/type/severity |
-| `sast_issue_detail` | Full detail for a specific issue |
+| Tool                | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `sast_projects`     | List SonarQube projects                             |
+| `sast_issues`       | Search issues (bugs, vulns, code smells) by project |
+| `sast_hotspots`     | Search security hotspots by project                 |
+| `sast_quality_gate` | Get quality gate status (pass/fail + conditions)    |
+| `sast_measures`     | Get project metrics (coverage, debt, ratings)       |
+| `sast_health`       | Check SonarQube server health and version           |
+| `sast_rules`        | Search analysis rules by language/type/severity     |
+| `sast_issue_detail` | Full detail for a specific issue                    |
+
+### SAST — Semgrep Local (1 tool, no infrastructure needed)
+
+| Tool           | Description                                                                                                                                                | Requires |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `sast_semgrep` | Run semgrep as SAST with security rulesets (`p/owasp-top-ten`, `p/security-audit`, `p/ci`, etc.). No SonarQube needed — runs locally with semgrep ruleset. | semgrep  |
 
 ### Reconnaissance (9 tools)
 
-| Tool | Description | Requires |
-|------|-------------|----------|
-| `recon_nmap_scan` | nmap scan (quick/service/full/udp) | nmap |
-| `recon_nmap_vuln` | nmap NSE vulnerability scan | nmap |
-| `recon_port_scan` | Quick TCP port scan (common ports) | nmap |
-| `recon_dns_lookup` | DNS lookup (A, AAAA, MX, NS, TXT, etc.) | dig |
-| `recon_dns_reverse` | Reverse DNS lookup | dig |
-| `recon_http_headers` | HTTP headers + security header analysis | curl |
-| `recon_ssl_check` | SSL/TLS certificate analysis | Python ssl |
-| `recon_whois` | WHOIS domain lookup | whois |
-| `recon_ping` | Host reachability and latency | ping |
+| Tool                 | Description                             | Requires   |
+| -------------------- | --------------------------------------- | ---------- |
+| `recon_nmap_scan`    | nmap scan (quick/service/full/udp)      | nmap       |
+| `recon_nmap_vuln`    | nmap NSE vulnerability scan             | nmap       |
+| `recon_port_scan`    | Quick TCP port scan (common ports)      | nmap       |
+| `recon_dns_lookup`   | DNS lookup (A, AAAA, MX, NS, TXT, etc.) | dig        |
+| `recon_dns_reverse`  | Reverse DNS lookup                      | dig        |
+| `recon_http_headers` | HTTP headers + security header analysis | curl       |
+| `recon_ssl_check`    | SSL/TLS certificate analysis            | Python ssl |
+| `recon_whois`        | WHOIS domain lookup                     | whois      |
+| `recon_ping`         | Host reachability and latency           | ping       |
 
 ### Secrets Scanning (3 tools)
 
-| Tool | Description | Requires |
-|------|-------------|----------|
+| Tool                 | Description                                              | Requires   |
+| -------------------- | -------------------------------------------------------- | ---------- |
 | `secrets_trufflehog` | Scan directory for secrets (API keys, tokens, passwords) | trufflehog |
-| `secrets_gitleaks` | Scan git repo for credentials | gitleaks |
-| `secrets_semgrep` | Static analysis for security issues | semgrep |
+| `secrets_gitleaks`   | Scan git repo for credentials                            | gitleaks   |
+| `secrets_semgrep`    | Static analysis for security issues                      | semgrep    |
 
 ### SBOM / Vulnerability Scanning (4 tools)
 
-| Tool | Description | Requires |
-|------|-------------|----------|
-| `sbom_trivy` | Trivy scan (fs/image/repo) | trivy |
-| `sbom_grype` | Grype vulnerability scan | grype |
-| `sbom_osv_scan` | OSV package vulnerability query | (API) |
-| `sbom_osv_batch` | Batch scan multiple packages via OSV | (API) |
+| Tool             | Description                          | Requires |
+| ---------------- | ------------------------------------ | -------- |
+| `sbom_trivy`     | Trivy scan (fs/image/repo)           | trivy    |
+| `sbom_grype`     | Grype vulnerability scan             | grype    |
+| `sbom_osv_scan`  | OSV package vulnerability query      | (API)    |
+| `sbom_osv_batch` | Batch scan multiple packages via OSV | (API)    |
 
 ### Exploit & Attack (4 tools)
 
-| Tool | Description | Requires |
-|------|-------------|----------|
-| `exploit_searchsploit` | Search exploitdb | searchsploit |
-| `exploit_nmap_script` | nmap NSE script scan (vuln, auth, brute, etc.) | nmap |
-| `exploit_nikto` | Web server vulnerability scanner | nikto |
-| `exploit_nuclei` | Fast vulnerability scanner with templates | nuclei |
+| Tool                   | Description                                    | Requires     |
+| ---------------------- | ---------------------------------------------- | ------------ |
+| `exploit_searchsploit` | Search exploitdb                               | searchsploit |
+| `exploit_nmap_script`  | nmap NSE script scan (vuln, auth, brute, etc.) | nmap         |
+| `exploit_nikto`        | Web server vulnerability scanner               | nikto        |
+| `exploit_nuclei`       | Fast vulnerability scanner with templates      | nuclei       |
 
-### Reporting (3 tools)
+### Reporting (4 tools)
 
-| Tool | Description |
-|------|-------------|
-| `report_markdown` | Generate markdown vulnerability report from findings |
-| `report_jira` | Generate Jira ticket JSON for a finding |
-| `report_summary` | Compact CLI-friendly findings summary |
+| Tool              | Description                                                                       |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `report_markdown` | Generate markdown vulnerability report from findings                              |
+| `report_sarif`    | Generate SARIF 2.1.0 report (upload to GitHub Security tab, VSCode, Azure DevOps) |
+| `report_jira`     | Generate Jira ticket JSON for a finding                                           |
+| `report_summary`  | Compact CLI-friendly findings summary                                             |
+
+### Orchestration (2 tools)
+
+| Tool          | Description                                                                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audit_repo`  | Full security audit of a repo in one call: secrets scan (gitleaks) + SAST (semgrep) + dependency scan (trivy). Unified findings with severity counts. |
+| `tool_health` | Check which security binary tools are installed/missing. Returns install hints. Run first before an audit.                                            |
 
 ---
 
@@ -206,13 +221,38 @@ Unified risk score (0–100) computed in `cve_enrich` and `cve_prioritize`:
 risk = min(cvss × 0.4 + kev_30 + epss × 100 + exploit_15 + severity_10, 100)
 ```
 
-| Factor | Points |
-|--------|--------|
-| CVSS score × 0.4 | 0–40 |
-| In CISA KEV | +30 |
-| EPSS probability × 100 | 0–30 |
-| Exploit available | +15 |
-| Critical/High severity | +10 |
+| Factor                 | Points |
+| ---------------------- | ------ |
+| CVSS score × 0.4       | 0–40   |
+| In CISA KEV            | +30    |
+| EPSS probability × 100 | 0–30   |
+| Exploit available      | +15    |
+| Critical/High severity | +10    |
+
+**Custom weights:** Pass `weights` dict to `cve_enrich`, `cve_prioritize`, or `cve_dump_recent` to override defaults:
+
+```python
+# Example: emphasize KEV and exploits for prod environments
+weights = {"cvss": 0.3, "kev": 40.0, "epss_cap": 25.0, "exploit": 20.0, "severity": 10.0}
+```
+
+Default weights defined in `core/models.py:DEFAULT_RISK_WEIGHTS`.
+
+---
+
+## Common Workflows
+
+| Goal                      | Tools in order                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| Audit my repo (full)      | `tool_health` → `audit_repo` → `report_markdown`                               |
+| Audit my repo (manual)    | `secrets_gitleaks` → `sast_semgrep` → `sbom_trivy` → `report_markdown`         |
+| Triage a specific CVE     | `cve_enrich` → `cve_cwe_mitigations` → `report_jira`                           |
+| Prioritize a CVE list     | `cve_prioritize` → `report_markdown`                                           |
+| Monitor new CVEs          | `cve_dump_recent` → filter by risk → `cve_kev_recent`                          |
+| Pentest a host            | `recon_nmap_scan` → `recon_http_headers` → `recon_ssl_check` → `exploit_nikto` |
+| Validate dependency bump  | `sbom_osv_batch` → `cve_prioritize` (on CVEs found)                            |
+| Upload findings to GitHub | `audit_repo` → `report_sarif` → upload to GH Security tab                      |
+| Check tool availability   | `tool_health`                                                                  |
 
 ---
 
@@ -247,19 +287,19 @@ risk = min(cvss × 0.4 + kev_30 + epss × 100 + exploit_15 + severity_10, 100)
 
 ## Tool Availability Matrix
 
-| Tool | Install |
-|------|---------|
-| nmap | `brew install nmap` |
-| dig | system |
-| curl | system |
-| whois | `brew install whois` |
-| trufflehog | `brew install trufflehog` |
-| gitleaks | `brew install gitleaks` |
-| semgrep | `pip install semgrep` |
-| trivy | `brew install trivy` |
-| grype | `brew install grype` |
-| searchsploit | `brew install exploitdb` |
-| nikto | `brew install nikto` |
-| nuclei | `brew install nuclei` |
+| Tool         | Install                   |
+| ------------ | ------------------------- |
+| nmap         | `brew install nmap`       |
+| dig          | system                    |
+| curl         | system                    |
+| whois        | `brew install whois`      |
+| trufflehog   | `brew install trufflehog` |
+| gitleaks     | `brew install gitleaks`   |
+| semgrep      | `pip install semgrep`     |
+| trivy        | `brew install trivy`      |
+| grype        | `brew install grype`      |
+| searchsploit | `brew install exploitdb`  |
+| nikto        | `brew install nikto`      |
+| nuclei       | `brew install nuclei`     |
 
 API-only tools (NVD, EPSS, KEV, GHSA, OSV, CWE) require no installation.
