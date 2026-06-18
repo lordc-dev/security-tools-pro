@@ -274,9 +274,8 @@ def _load_data() -> list[dict]:
     resp = urllib.request.urlopen(CWE_CSV_URL, timeout=60)
     raw = resp.read()
     content_hash = hashlib.sha256(raw).hexdigest()
-    if CWE_CSV_SHA256:
-        if content_hash != CWE_CSV_SHA256:
-            raise ValueError(f"CWE CSV integrity check failed. Expected {CWE_CSV_SHA256[:16]}... got {content_hash[:16]}...")
+    if CWE_CSV_SHA256 and content_hash != CWE_CSV_SHA256:
+        raise ValueError(f"CWE CSV integrity check failed. Expected {CWE_CSV_SHA256[:16]}... got {content_hash[:16]}...")
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
         csv_name = [n for n in zf.namelist() if n.endswith(".csv")][0]
         with zf.open(csv_name) as f:

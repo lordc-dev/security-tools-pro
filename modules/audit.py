@@ -165,6 +165,18 @@ def audit_repo(
     if output_format == "sarif":
         return generate_sarif_report(all_findings, title=f"Security Audit: {directory}")
 
+    out = _build_markdown_report(directory, sections, all_findings, severity_counts)
+
+    if output_format == "sarif+markdown":
+        out += "\n---\n\n## SARIF Output\n\n```json\n" + generate_sarif_report(all_findings, title=f"Security Audit: {directory}") + "\n```\n"
+
+    return out
+
+
+_SEV_ICONS = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵", "INFO": "⚪"}
+
+
+def _build_markdown_report(directory: str, sections: dict[str, str], all_findings: list[dict], severity_counts: dict[str, int]) -> str:
     out = f"# Security Audit: {directory}\n\n"
     out += f"**Generated:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} | **Scanners run in parallel**\n\n"
 
@@ -175,16 +187,12 @@ def audit_repo(
     out += "| Severity | Count |\n|----------|-------|\n"
     for sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
         if sev in severity_counts:
-            icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵", "INFO": "⚪"}.get(sev, "")
-            out += f"| {icon} {sev} | {severity_counts[sev]} |\n"
+            out += f"| {_SEV_ICONS.get(sev, '')} {sev} | {severity_counts[sev]} |\n"
     out += "\n"
 
     for key in ["secrets", "sast", "deps"]:
         if key in sections:
             out += sections[key]
-
-    if output_format == "sarif+markdown":
-        out += "\n---\n\n## SARIF Output\n\n```json\n" + generate_sarif_report(all_findings, title=f"Security Audit: {directory}") + "\n```\n"
 
     return out
 

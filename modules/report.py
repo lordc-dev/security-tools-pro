@@ -204,6 +204,8 @@ def generate_sarif_report(findings: list[dict], title: str = "Security Assessmen
                     }
                 },
                 "results": results,
+                "automationDetails": {"id": title},
+                "properties": {"title": title},
                 "invocations": [
                     {
                         "executionSuccessful": True,
