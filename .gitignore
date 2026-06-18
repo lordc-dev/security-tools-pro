@@ -4,3 +4,8 @@ sonar-project.properties
 .venv/
 .env
 *.pyc
+coverage.xml
+.coverage
+.pytest_cache/
+.opencode
+*.sarif
