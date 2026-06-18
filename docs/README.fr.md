@@ -2,9 +2,9 @@
 
 [English](../README.md) | [Español](README.es.md) | [Català](README.ca.md) | [Galego](README.gl.md) | [Euskara](README.eu.md) | **Français** | [Português](README.pt.md)
 
-**58 outils. Un serveur. Couverture de sécurité complète.** Renseignement sur les vulnérabilités, SAST, reconnaissance, scan de secrets, audit de dépendances, recherche d'exploits et reporting — tout interconnecté pour que l'IA puisse trier, scanner et rapporter sans jongler entre 10 outils CLI et 5 onglets de navigateur.
+**59 outils. Un serveur. Couverture de sécurité complète.** Renseignement sur les vulnérabilités, SAST, reconnaissance, scan de secrets, audit de dépendances, recherche d'exploits et reporting — tout interconnecté pour que l'IA puisse trier, scanner et rapporter sans jongler entre 10 outils CLI et 5 onglets de navigateur.
 
-> **Serveur MCP de sécurité unifié** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit et plus. 58 outils. Un serveur.
+> **Serveur MCP de sécurité unifié** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit et plus. 59 outils. Un serveur.
 
 _Construit et maintenu par :_
 
@@ -22,12 +22,12 @@ _Construit et maintenu par :_
 
 ---
 
-## 58 Outils en un Coup d'Œil
+## 59 Outils en un Coup d'Œil
 
 | Catégorie             | Nombre | Outils                                                                                                                                                                                                                                                               |
 | --------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Intelligence CVE      | 15     | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
-| Analyse CWE           | 8      | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`                                                                                                    |
+| Analyse CWE           | 9      | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`, `cve_cwe_version`                                                                                                    |
 | SAST                  | 9      | `sast_semgrep`, `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail`                                                                                                              |
 | Reconnaissance        | 9      | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping`                                                                                               |
 | Scan de Secrets       | 3      | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep`                                                                                                                                                                                                          |
@@ -83,7 +83,7 @@ Ajoutez à la configuration de votre client MCP :
 
 ```
 security-tools-pro/
-├── server.py              # FastMCP entrypoint — 58 outils
+├── server.py              # FastMCP entrypoint — 59 outils
 ├── core/
 │   ├── config.py          # Résolution des identifiants SSOT (.env via python-dotenv)
 │   ├── cache.py           # Cache SQLite avec TTL (thread-safe)
@@ -129,7 +129,7 @@ security-tools-pro/
 | `cve_osv_query`      | Interroger OSV pour les vulnérabilités de paquets                                   | OSV                   |
 | `cve_osv_batch`      | Requête batch OSV pour plusieurs paquets                                            | OSV                   |
 
-### Analyse CWE (8 outils)
+### Analyse CWE (9 outils)
 
 | Outil                    | Description                                               |
 | ------------------------ | --------------------------------------------------------- |
@@ -141,6 +141,8 @@ security-tools-pro/
 | `cve_cwe_consequences`   | Impact/conséquences pour un CWE                           |
 | `cve_cwe_by_abstraction` | Filtrer par Pillar/Class/Base/Variant/Compound            |
 | `cve_cwe_dump_all`       | Dumper tout le catalogue CWE (ou filtrer par abstraction) |
+| `cve_cwe_version`        | Info de version du catalogue CWE : SHA-256, timestamp, URL source — pour reproductibilité |
+| `cve_cwe_version`        | Info de version du catalogue CWE : SHA-256, timestamp, URL source — pour reproductibilité |
 
 ### SAST — SonarQube (8 outils)
 
@@ -159,7 +161,7 @@ security-tools-pro/
 
 | Outil          | Description                                                                                                                                                                             | Requiert |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `sast_semgrep` | Exécuter semgrep comme SAST avec des rulesets de sécurité (`p/owasp-top-ten`, `p/security-audit`, `p/ci`, etc.). Aucun SonarQube requis — s'exécute localement avec le ruleset semgrep. | semgrep  |
+| `sast_semgrep` | Exécuter semgrep comme SAST avec presets : `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`, `default`, `auto`. Accepte aussi `p/*` rulesets. Aucun SonarQube requis — s'exécute localement. | semgrep  |
 
 ### Reconnaissance (9 outils)
 
@@ -214,8 +216,8 @@ security-tools-pro/
 
 | Outil         | Description                                                                                                                                                              |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `audit_repo`  | Audit de sécurité complet d'un repo en un appel : scan de secrets (gitleaks) + SAST (semgrep) + scan de dépendances (trivy). Findings unifiés avec comptes par sévérité. |
-| `tool_health` | Vérifier quels outils binaires de sécurité sont installés/manquants. Retourne des hints d'installation. À exécuter en premier avant un audit.                            |
+| `audit_repo`  | Audit de sécurité complet en un appel. Scanners en **parallèle** (gitleaks + semgrep + trivy). Presets : `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`. Formats : `markdown`, `sarif`, `sarif+markdown`. Findings unifiés avec comptes par sévérité. |
+| `tool_health` | Vérifier quels outils binaires de sécurité sont installés/manquants. `fix=true` pour auto-installer via brew/pip. À exécuter en premier avant un audit.               |
 
 ---
 
@@ -250,15 +252,15 @@ Valeurs par défaut définies dans `core/models.py:DEFAULT_RISK_WEIGHTS`.
 
 | Objectif                             | Outils en ordre                                                                |
 | ------------------------------------ | ------------------------------------------------------------------------------ |
-| Auditer mon repo (complet)           | `tool_health` → `audit_repo` → `report_markdown`                               |
+| Auditer mon repo (complet)           | `tool_health` → `audit_repo` (output_format=sarif+markdown)                    |
 | Auditer mon repo (manuel)            | `secrets_gitleaks` → `sast_semgrep` → `sbom_trivy` → `report_markdown`         |
 | Trier un CVE spécifique              | `cve_enrich` → `cve_cwe_mitigations` → `report_jira`                           |
 | Prioriser une liste de CVEs          | `cve_prioritize` → `report_markdown`                                           |
 | Surveiller les nouveaux CVEs         | `cve_dump_recent` → filtrer par risque → `cve_kev_recent`                      |
 | Pentester un host                    | `recon_nmap_scan` → `recon_http_headers` → `recon_ssl_check` → `exploit_nikto` |
 | Valider un bump de dépendance        | `sbom_osv_batch` → `cve_prioritize` (sur les CVEs trouvés)                     |
-| Uploader les findings sur GitHub     | `audit_repo` → `report_sarif` → upload vers GH Security tab                    |
-| Vérifier la disponibilité des outils | `tool_health`                                                                  |
+| Uploader les findings sur GitHub     | `audit_repo` (output_format=sarif) → upload vers GH Security tab               |
+| Vérifier la disponibilité des outils | `tool_health` (fix=true pour auto-installer)                                |
 
 ---
 

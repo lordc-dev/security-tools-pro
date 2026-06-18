@@ -2,9 +2,9 @@
 
 [English](../README.md) | [Español](README.es.md) | **Català** | [Galego](README.gl.md) | [Euskara](README.eu.md) | [Français](README.fr.md) | [Português](README.pt.md)
 
-**58 eines. Un servidor. Cobertura de seguretat completa.** Intel·ligència de vulnerabilitats, SAST, reconeixement, escaneig de secrets, auditoria de dependències, investigació d'exploits i informes — tot interconnectat perquè la IA pugui triar, escanejar i informar sense saltar entre 10 eines CLI i 5 pestanyes del navegador.
+**59 eines. Un servidor. Cobertura de seguretat completa.** Intel·ligència de vulnerabilitats, SAST, reconeixement, escaneig de secrets, auditoria de dependències, investigació d'exploits i informes — tot interconnectat perquè la IA pugui triar, escanejar i informar sense saltar entre 10 eines CLI i 5 pestanyes del navegador.
 
-> **Servidor MCP de seguretat unificat** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit i més. 58 eines. Un servidor.
+> **Servidor MCP de seguretat unificat** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit i més. 59 eines. Un servidor.
 
 _Construït i mantingut per:_
 
@@ -22,12 +22,12 @@ _Construït i mantingut per:_
 
 ---
 
-## 58 Eines d'un Cop d'Ull
+## 59 Eines d'un Cop d'Ull
 
 | Categoria              | Quantitat | Eines                                                                                                                                                                                                                                                                |
 | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Intel·ligència CVE     | 15        | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
-| Anàlisi CWE            | 8         | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`                                                                                                    |
+| Anàlisi CWE            | 9         | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`, `cve_cwe_version`                                                                                                    |
 | SAST                   | 9         | `sast_semgrep`, `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail`                                                                                                              |
 | Reconeixement          | 9         | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping`                                                                                               |
 | Escaneig de Secrets    | 3         | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep`                                                                                                                                                                                                          |
@@ -78,7 +78,7 @@ Afegeix a la configuració del teu client MCP:
 
 ```
 security-tools-pro/
-├── server.py              # FastMCP entrypoint — 58 eines
+├── server.py              # FastMCP entrypoint — 59 eines
 ├── core/
 │   ├── config.py          # Resolució de credencials SSOT (.env via python-dotenv)
 │   ├── cache.py           # Caché SQLite amb TTL (thread-safe)
@@ -124,7 +124,7 @@ security-tools-pro/
 | `cve_osv_query`      | Consultar OSV per a vulnerabilitats de paquets                                     | OSV                   |
 | `cve_osv_batch`      | Consulta batch OSV per a múltiples paquets                                         | OSV                   |
 
-### Anàlisi CWE (8 eines)
+### Anàlisi CWE (9 eines)
 
 | Eina                     | Descripció                                              |
 | ------------------------ | ------------------------------------------------------- |
@@ -136,6 +136,8 @@ security-tools-pro/
 | `cve_cwe_consequences`   | Impacte/conseqüències per a un CWE                      |
 | `cve_cwe_by_abstraction` | Filtrar per Pillar/Class/Base/Variant/Compound          |
 | `cve_cwe_dump_all`       | Dump del catàleg CWE complet (o filtrar per abstracció) |
+| `cve_cwe_version`        | Info de versió del catàleg CWE: SHA-256, timestamp, URL font — per reproductibilitat |
+| `cve_cwe_version`        | Info de versió del catàleg CWE: SHA-256, timestamp, URL font — per reproductibilitat |
 
 ### SAST — SonarQube (8 eines)
 
@@ -154,7 +156,7 @@ security-tools-pro/
 
 | Eina           | Descripció                                                                                                                                             | Requereix |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| `sast_semgrep` | Executar semgrep com a SAST amb rulesets de seguretat (`p/owasp-top-ten`, `p/security-audit`, `p/ci`, etc.). No necessita SonarQube — corre localment. | semgrep   |
+| `sast_semgrep` | Executar semgrep com a SAST amb presets: `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`, `default`, `auto`. També accepta `p/*` rulesets. No necessita SonarQube — corre localment. | semgrep  |
 
 ### Reconeixement (9 eines)
 
@@ -209,8 +211,8 @@ security-tools-pro/
 
 | Eina          | Descripció                                                                                                                                                         |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `audit_repo`  | Auditoria de seguretat completa d'un repo en una crida: secrets (gitleaks) + SAST (semgrep) + dependències (trivy). Findings unificats amb recomptes de severitat. |
-| `tool_health` | Verificar quins binaris de seguretat estan instal·lats/faltants. Retorna hints d'instal·lació. Executar primer abans d'una auditoria.                              |
+| `audit_repo`  | Auditoria de seguretat completa en una crida. Scanners en **paral·lel** (gitleaks + semgrep + trivy). Presets: `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`. Formats: `markdown`, `sarif`, `sarif+markdown`. Findings unificats amb recomptes de severitat. |
+| `tool_health` | Verificar quins binaris de seguretat estan instal·lats/faltants. `fix=true` per auto-instal·lar via brew/pip. Executar primer abans d'una auditoria.                |
 
 ---
 
@@ -245,15 +247,15 @@ Valors per defecte definits a `core/models.py:DEFAULT_RISK_WEIGHTS`.
 
 | Objectiu                      | Eines en ordre                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------ |
-| Auditar el meu repo (complet) | `tool_health` → `audit_repo` → `report_markdown`                               |
+| Auditar el meu repo (complet) | `tool_health` → `audit_repo` (output_format=sarif+markdown)                    |
 | Auditar el meu repo (manual)  | `secrets_gitleaks` → `sast_semgrep` → `sbom_trivy` → `report_markdown`         |
 | Triar un CVE concret          | `cve_enrich` → `cve_cwe_mitigations` → `report_jira`                           |
 | Prioritzar una llista de CVEs | `cve_prioritize` → `report_markdown`                                           |
 | Monitoritzar CVEs nous        | `cve_dump_recent` → filtrar per risc → `cve_kev_recent`                        |
 | Pentest a un host             | `recon_nmap_scan` → `recon_http_headers` → `recon_ssl_check` → `exploit_nikto` |
 | Validar bump de dependència   | `sbom_osv_batch` → `cve_prioritize` (sobre CVEs trobats)                       |
-| Pujar findings a GitHub       | `audit_repo` → `report_sarif` → pujar a GH Security tab                        |
-| Verificar eines disponibles   | `tool_health`                                                                  |
+| Pujar findings a GitHub       | `audit_repo` (output_format=sarif) → pujar a GH Security tab                   |
+| Verificar eines disponibles   | `tool_health` (fix=true per auto-instal·lar)                                 |
 
 ---
 

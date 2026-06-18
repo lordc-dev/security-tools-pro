@@ -2,9 +2,9 @@
 
 [English](../README.md) | [Español](README.es.md) | [Català](README.ca.md) | [Galego](README.gl.md) | **Euskara** | [Français](README.fr.md) | [Português](README.pt.md)
 
-**58 tresna. Zerbitzari bat. Segurtasun-estaldura osoa.** Ahultasun-inteligentzia, SAST, errekonozimendua, sekretu-eskaneoa, dependentzia-auditoria, exploit-ikerketa eta txostenak — guztia elkarketuta IAk triatu, eskaneatu eta txostentzeko 10 CLI tresna eta 5 arakatzaile-fitxatan salto egin gabe.
+**59 tresna. Zerbitzari bat. Segurtasun-estaldura osoa.** Ahultasun-inteligentzia, SAST, errekonozimendua, sekretu-eskaneoa, dependentzia-auditoria, exploit-ikerketa eta txostenak — guztia elkarketuta IAk triatu, eskaneatu eta txostentzeko 10 CLI tresna eta 5 arakatzaile-fitxatan salto egin gabe.
 
-> **MCP segurtasun-zerbitzari bateratua** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit eta gehiago. 58 tresna. Zerbitzari bat.
+> **MCP segurtasun-zerbitzari bateratua** — NVD, EPSS, CISA KEV, GitHub Advisory, OSV, MITRE CWE, SonarQube, nmap, trivy, grype, gitleaks, trufflehog, semgrep, nikto, nuclei, searchsploit eta gehiago. 59 tresna. Zerbitzari bat.
 
 _Eraikia eta mantendua:_
 
@@ -22,12 +22,12 @@ _Eraikia eta mantendua:_
 
 ---
 
-## 58 Tresna Begirada batean
+## 59 Tresna Begirada batean
 
 | Kategoria           | Kopurua | Tresnak                                                                                                                                                                                                                                                              |
 | ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | CVE Inteligentzia   | 15      | `cve_enrich`, `cve_nvd_get`, `cve_nvd_search`, `cve_nvd_recent`, `cve_epss_score`, `cve_kev_check`, `cve_kev_recent`, `cve_ghsa_get`, `cve_ghsa_search`, `cve_exploit_search`, `cve_prioritize`, `cve_trending`, `cve_dump_recent`, `cve_osv_query`, `cve_osv_batch` |
-| CWE Analisia        | 8       | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`                                                                                                    |
+| CWE Analisia        | 9       | `cve_cwe_by_id`, `cve_cwe_search`, `cve_cwe_list`, `cve_cwe_mitigations`, `cve_cwe_related`, `cve_cwe_consequences`, `cve_cwe_by_abstraction`, `cve_cwe_dump_all`, `cve_cwe_version`                                                                                                    |
 | SAST                | 9       | `sast_semgrep`, `sast_projects`, `sast_issues`, `sast_hotspots`, `sast_quality_gate`, `sast_measures`, `sast_health`, `sast_rules`, `sast_issue_detail`                                                                                                              |
 | Errekonozimendua    | 9       | `recon_nmap_scan`, `recon_nmap_vuln`, `recon_port_scan`, `recon_dns_lookup`, `recon_dns_reverse`, `recon_http_headers`, `recon_ssl_check`, `recon_whois`, `recon_ping`                                                                                               |
 | Sekretu-eskaneoa    | 3       | `secrets_trufflehog`, `secrets_gitleaks`, `secrets_semgrep`                                                                                                                                                                                                          |
@@ -83,7 +83,7 @@ Gehitu zure MCP bezeroaren konfigurazioari:
 
 ```
 security-tools-pro/
-├── server.py              # FastMCP entrypoint — 58 tresna
+├── server.py              # FastMCP entrypoint — 59 tresna
 ├── core/
 │   ├── config.py          # SSOT kredentzial-ebazpena (.env python-dotenv bidez)
 │   ├── cache.py           # SQLite caché TTL-rekin (thread-safe)
@@ -129,7 +129,7 @@ security-tools-pro/
 | `cve_osv_query`      | Kontsultatu OSV pakete-ahultasunetarako                                      | OSV                   |
 | `cve_osv_batch`      | Batch OSV kontsulta hainbat paketetarako                                     | OSV                   |
 
-### CWE Analisia (8 tresna)
+### CWE Analisia (9 tresna)
 
 | Tresna                   | Deskripzioa                                                |
 | ------------------------ | ---------------------------------------------------------- |
@@ -141,6 +141,8 @@ security-tools-pro/
 | `cve_cwe_consequences`   | CWE batentzat eragina/kontserkuentziak                     |
 | `cve_cwe_by_abstraction` | Iragazi Pillar/Class/Base/Variant/Compound bidez           |
 | `cve_cwe_dump_all`       | CWE katalogo osoaren dump-a (edo iragazi abstrakzio bidez) |
+| `cve_cwe_version`        | CWE katalogoaren bertsio-infoa: SHA-256, timestamp, iturburu-URLa — erreproduzigarritasunerako |
+| `cve_cwe_version`        | CWE katalogoaren bertsio-infoa: SHA-256, timestamp, iturburu-URLa — erreproduzigarritasunerako |
 
 ### SAST — SonarQube (8 tresna)
 
@@ -159,7 +161,7 @@ security-tools-pro/
 
 | Tresna         | Deskripzioa                                                                                                                                                                           | Behar du |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `sast_semgrep` | Exekutatu semgrep SAST gisa segurtasun ruleset-ekin (`p/owasp-top-ten`, `p/security-audit`, `p/ci`, etab.). SonarQube beharrezkoa ez — lokalki exekutatzen da semgrep ruleset-arekin. | semgrep  |
+| `sast_semgrep` | Exekutatu semgrep SAST gisa preset-ekin: `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`, `default`, `auto`. `p/*` ruleset-ak ere onartzen ditu. SonarQube beharrezkoa ez — lokalki exekutatzen da. | semgrep  |
 
 ### Errekonozimendua (9 tresna)
 
@@ -214,8 +216,8 @@ security-tools-pro/
 
 | Tresna        | Deskripzioa                                                                                                                                                 |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `audit_repo`  | Repo baten segurtasun-auditoria osoa dei bakarrean: sekretuak (gitleaks) + SAST (semgrep) + dependentziak (trivy). Finding bateratuak larritasun-kontuekin. |
-| `tool_health` | Egiaztatu zein segurtasun-binario instalatuta/ falta diren. Instalazio-argibideak itzultzen ditu. Exekutatu lehenbizi auditoria bat baino lehen.            |
+| `audit_repo`  | Repo baten segurtasun-auditoria osoa dei bakarrean. Scanners **paraleloan** (gitleaks + semgrep + trivy). Presets: `owasp`, `audit`, `ci`, `secrets`, `xss`, `sqli`. Formatuak: `markdown`, `sarif`, `sarif+markdown`. Finding bateratuak larritasun-kontuekin. |
+| `tool_health` | Egiaztatu zein segurtasun-binario instalatuta/falta diren. `fix=true` auto-instalatzeko brew/pip bidez. Exekutatu lehenbizi auditoria bat baino lehen.       |
 
 ---
 
@@ -250,15 +252,15 @@ Defektuzko pisuak `core/models.py:DEFAULT_RISK_WEIGHTS`-en definituta.
 
 | Helburua                           | Tresnak ordenan                                                                |
 | ---------------------------------- | ------------------------------------------------------------------------------ |
-| Auditatu nire repo-a (oso)         | `tool_health` → `audit_repo` → `report_markdown`                               |
+| Auditatu nire repo-a (oso)         | `tool_health` → `audit_repo` (output_format=sarif+markdown)                    |
 | Auditatu nire repo-a (eskuz)       | `secrets_gitleaks` → `sast_semgrep` → `sbom_trivy` → `report_markdown`         |
 | Triatu CVE zehatz bat              | `cve_enrich` → `cve_cwe_mitigations` → `report_jira`                           |
 | Priorizatu CVE zerrenda bat        | `cve_prioritize` → `report_markdown`                                           |
 | Monitorizatu CVE berriak           | `cve_dump_recent` → iragazi arrisku bidez → `cve_kev_recent`                   |
 | Pentest egin host bati             | `recon_nmap_scan` → `recon_http_headers` → `recon_ssl_check` → `exploit_nikto` |
 | Balioztatu dependentzia-bump bat   | `sbom_osv_batch` → `cve_prioritize` (aurkitutako CVEetan)                      |
-| Igo finding-ak GitHub-era          | `audit_repo` → `report_sarif` → igo GH Security tab-era                        |
-| Egiaztatu tresna erabilgarritasuna | `tool_health`                                                                  |
+| Igo finding-ak GitHub-era          | `audit_repo` (output_format=sarif) → igo GH Security tab-era                   |
+| Egiaztatu tresna erabilgarritasuna | `tool_health` (fix=true auto-instalatzeko)                                   |
 
 ---
 
