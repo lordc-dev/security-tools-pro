@@ -354,12 +354,17 @@ def _enrich_ghsa(cve: CVEInfo, ghsa_advisories: list[dict]) -> None:
 def _parse_ghsa_packages(adv: dict) -> list[dict]:
     packages = []
     for pv in adv.get("vulnerabilities", []):
+        if not isinstance(pv, dict):
+            continue
         pkg = pv.get("package", {})
+        if not isinstance(pkg, dict):
+            pkg = {}
+        fpv = pv.get("first_patched_version")
         packages.append({
             "ecosystem": pkg.get("ecosystem", ""),
             "name": pkg.get("name", ""),
             "vulnerable_range": pv.get("vulnerable_range", ""),
-            "first_patched_version": pv.get("first_patched_version", {}).get("identifier", "") if pv.get("first_patched_version") else "",
+            "first_patched_version": fpv.get("identifier", "") if isinstance(fpv, dict) else "",
         })
     return packages
 

@@ -127,9 +127,9 @@ def _parse_observed(raw: str) -> list[dict]:
         desc = _seg_key(seg, "DESCRIPTION", [r":REFERENCE:", r":NOTE:"])
         if desc is not None:
             entry["description"] = desc
-        link = _seg_key(seg, "LINK", [r":|$"])
-        if link is not None:
-            entry["link"] = link
+        link = re.search(r"LINK:(.+)$", seg)
+        if link:
+            entry["link"] = link.group(1).strip().rstrip(":")
         if entry:
             results.append(entry)
     return results

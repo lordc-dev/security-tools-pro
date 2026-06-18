@@ -157,10 +157,14 @@ def validate_severity(severity: str | None) -> str | None:
     if severity is None:
         return None
     valid = {"LOW", "MEDIUM", "HIGH", "CRITICAL", "INFO"}
-    s = severity.upper()
-    if s not in valid:
+    # Accept comma-separated list (e.g. "medium,high,critical")
+    parts = [p.strip().upper() for p in severity.split(",") if p.strip()]
+    if not parts:
         raise ValueError(f"Invalid severity: {severity!r}. Must be one of: {', '.join(sorted(valid))}")
-    return s
+    invalid = [p for p in parts if p not in valid]
+    if invalid:
+        raise ValueError(f"Invalid severity: {invalid[0]!r}. Must be one of: {', '.join(sorted(valid))}")
+    return ",".join(parts)
 
 
 def validate_directory(directory: str) -> str:
