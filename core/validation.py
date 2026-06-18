@@ -38,11 +38,18 @@ NMAP_SCRIPTS = {
     "telnet-brute", "vnc-brute", "ssl-heartbleed", "ssl-poodle",
     "ssl-cert", "http-headers", "http-methods", "http-sql-injection",
 }
-SEMGREP_CONFIGS = {
-    "auto", "p/security-audit", "p/owasp-top-ten", "p/secrets",
-    "p/ci", "p/default", "p/jwt", "p/xss", "p/sql-injection",
-    "p/command-injection", "p/insecure-transport", "p/typing",
-    "owasp", "audit", "ci", "secrets", "xss", "sqli", "default",
+SEMGREP_PRESETS = {
+    "owasp": "p/owasp-top-ten",
+    "audit": "p/security-audit",
+    "ci": "p/ci",
+    "secrets": "p/secrets",
+    "xss": "p/xss",
+    "sqli": "p/sql-injection",
+    "default": "p/default",
+    "auto": "auto",
+}
+SEMGREP_CONFIGS = set(SEMGREP_PRESETS.keys()) | set(SEMGREP_PRESETS.values()) | {
+    "p/jwt", "p/command-injection", "p/insecure-transport", "p/typing",
 }
 REPORT_FORMATS = {"json", "sarif", "csv", "txt"}
 AUDIT_OUTPUT_FORMATS = {"markdown", "sarif", "sarif+markdown"}
@@ -120,11 +127,13 @@ def validate_nmap_script(script: str) -> str:
     raise ValueError(f"Invalid nmap script name: {script!r}")
 
 
+def resolve_semgrep_preset(config: str) -> str:
+    """Resolve a semgrep preset name to its p/* ruleset. Returns config unchanged if not a preset."""
+    return SEMGREP_PRESETS.get(config, config)
+
+
 def validate_semgrep_config(config: str) -> str:
-    from modules.audit import SEMGREP_PRESETS
-    if config in SEMGREP_PRESETS:
-        return config
-    if config in SEMGREP_CONFIGS:
+    if config in SEMGREP_PRESETS or config in SEMGREP_CONFIGS:
         return config
     if config.startswith("p/") and re.match(r"^[a-zA-Z0-9_/\-]+$", config):
         return config

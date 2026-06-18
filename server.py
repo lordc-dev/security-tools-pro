@@ -27,12 +27,12 @@ from modules.sast import (
     sonar_projects, sonar_issues, sonar_hotspots, sonar_quality_gate,
     sonar_measures, sonar_health, sonar_rules, sonar_issue_detail,
 )
-from modules.audit import audit_repo as _audit_repo, resolve_preset as _resolve_preset, SEMGREP_PRESETS
+from modules.audit import audit_repo as _audit_repo
 from core.config import is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
 from core.models import Severity
 from core.validation import (validate_url_https, safe_error, validate_cve_id,
     validate_cwe_id, validate_host, validate_ports, validate_scan_type,
-    validate_nmap_script, validate_semgrep_config, validate_report_format,
+    validate_nmap_script, validate_semgrep_config, resolve_semgrep_preset, validate_report_format,
     validate_severity, validate_directory, validate_audit_output_format)
 import json
 import re
@@ -710,7 +710,7 @@ def secrets_semgrep(directory: str, config: str = "auto", extra_args: list[str] 
         config = validate_semgrep_config(config)
     except ValueError as e:
         return str(e)
-    return semgrep_scan(directory, config=config, extra_args=extra_args)
+    return semgrep_scan(directory, config=resolve_semgrep_preset(config), extra_args=extra_args)
 
 
 @mcp.tool()
@@ -993,7 +993,7 @@ def sast_semgrep(directory: str, config: str = "owasp", extra_args: list[str] | 
     except ValueError as e:
         return str(e)
     from modules.secrets import semgrep_scan
-    return semgrep_scan(directory, config=config, extra_args=extra_args)
+    return semgrep_scan(directory, config=resolve_semgrep_preset(config), extra_args=extra_args)
 
 
 @mcp.tool()

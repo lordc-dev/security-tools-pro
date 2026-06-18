@@ -6,39 +6,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.validation import safe_error, validate_directory
+from core.validation import safe_error, validate_directory, resolve_semgrep_preset
 from modules.report import generate_sarif_report
 from modules.secrets import gitleaks_scan, semgrep_scan
 from modules.sbom import trivy_scan
-
-SEMGREP_PRESETS = {
-    "owasp": "p/owasp-top-ten",
-    "audit": "p/security-audit",
-    "ci": "p/ci",
-    "secrets": "p/secrets",
-    "xss": "p/xss",
-    "sqli": "p/sql-injection",
-    "default": "p/default",
-    "auto": "auto",
-}
-
-
-def resolve_preset(config: str) -> str:
-    if config in SEMGREP_PRESETS:
-        return SEMGREP_PRESETS[config]
-    return config
-
-
-def _run(cmd: list[str], timeout: int = 60) -> dict:
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return {"stdout": result.stdout, "stderr": safe_error(result.stderr[:500]) if result.stderr else "", "returncode": result.returncode}
-    except FileNotFoundError:
-        return {"error": f"Command not available: {cmd[0]}", "returncode": -1}
-    except subprocess.TimeoutExpired:
-        return {"error": f"Timeout ({timeout}s)", "returncode": -2}
-    except Exception as e:
-        return {"error": safe_error(str(e)[:200]), "returncode": -1}
 
 
 def _is_available(tool: str) -> bool:
@@ -161,7 +132,7 @@ def audit_repo(
     except ValueError as e:
         return str(e)
 
-    sast_config = resolve_preset(sast_config)
+    sast_config = resolve_semgrep_preset(sast_config)
 
     tasks: dict[str, callable] = {}
     if include_secrets:
