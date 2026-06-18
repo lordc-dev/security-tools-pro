@@ -142,7 +142,6 @@ security-tools-pro/
 | `cve_cwe_by_abstraction` | Iragazi Pillar/Class/Base/Variant/Compound bidez           |
 | `cve_cwe_dump_all`       | CWE katalogo osoaren dump-a (edo iragazi abstrakzio bidez) |
 | `cve_cwe_version`        | CWE katalogoaren bertsio-infoa: SHA-256, timestamp, iturburu-URLa — erreproduzigarritasunerako |
-| `cve_cwe_version`        | CWE katalogoaren bertsio-infoa: SHA-256, timestamp, iturburu-URLa — erreproduzigarritasunerako |
 
 ### SAST — SonarQube (8 tresna)
 

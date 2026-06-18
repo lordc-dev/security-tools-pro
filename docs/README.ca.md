@@ -137,7 +137,6 @@ security-tools-pro/
 | `cve_cwe_by_abstraction` | Filtrar per Pillar/Class/Base/Variant/Compound          |
 | `cve_cwe_dump_all`       | Dump del catàleg CWE complet (o filtrar per abstracció) |
 | `cve_cwe_version`        | Info de versió del catàleg CWE: SHA-256, timestamp, URL font — per reproductibilitat |
-| `cve_cwe_version`        | Info de versió del catàleg CWE: SHA-256, timestamp, URL font — per reproductibilitat |
 
 ### SAST — SonarQube (8 eines)
 

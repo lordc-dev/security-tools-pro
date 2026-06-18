@@ -137,7 +137,6 @@ security-tools-pro/
 | `cve_cwe_by_abstraction` | Filtrar por Pillar/Class/Base/Variant/Compound             |
 | `cve_cwe_dump_all`       | Dump del catálogo CWE completo (o filtrar por abstracción) |
 | `cve_cwe_version`        | Info de versión del catálogo CWE MITRE: SHA-256, timestamp, URL fuente — para reproducibilidad |
-| `cve_cwe_version`        | Info de versión del catálogo CWE MITRE: SHA-256, timestamp, URL fuente — para reproducibilidad |
 
 ### SAST — SonarQube (8 herramientas)
 
@@ -262,6 +261,15 @@ Valores por defecto definidos en `core/models.py:DEFAULT_RISK_WEIGHTS`.
 ## Seguridad
 
 ⚠️ **Este servidor MCP NO tiene autenticación ni autorización.** Todas las herramientas son accesibles para cualquier cliente que pueda conectarse. Aceptable para entornos locales/de confianza (Claude Desktop, opencode) pero **no debe** exponerse en redes no fiables.
+
+### Precauciones
+
+- Ejecutar solo en localhost o redes de confianza
+- Validación de entrada en todos los parámetros de herramientas (`core/validation.py`)
+- Límite de tasa por endpoint de API (`core/cache.py`)
+- Mensajes de error saneados — sin rutas internas ni fugas de secretos
+- Base de datos de caché con permisos `0600`
+- Credenciales leídas exclusivamente desde `.env` (nunca desde variables de entorno del shell ni archivos de configuración)
 
 ---
 
