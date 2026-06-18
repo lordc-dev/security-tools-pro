@@ -53,6 +53,7 @@ SEMGREP_CONFIGS = set(SEMGREP_PRESETS.keys()) | set(SEMGREP_PRESETS.values()) | 
 }
 REPORT_FORMATS = {"json", "sarif", "csv", "txt"}
 AUDIT_OUTPUT_FORMATS = {"markdown", "sarif", "sarif+markdown"}
+_REDACTED = r"\1[REDACTED]"
 
 
 def validate_cve_id(cve_id: str) -> str:
@@ -176,10 +177,10 @@ def validate_directory(directory: str) -> str:
 
 def safe_error(msg: str) -> str:
     redactions = [
-        (r"(?i)(api[_-]?key\s*[:=]\s*)\S+", r"\1[REDACTED]"),
-        (r"(?i)(token\s*[:=]\s*)\S+", r"\1[REDACTED]"),
-        (r"(?i)(password\s*[:=]\s*)\S+", r"\1[REDACTED]"),
-        (r"(?i)(secret\s*[:=]\s*)\S+", r"\1[REDACTED]"),
+        (r"(?i)(api[_-]?key\s*[:=]\s*)\S+", _REDACTED),
+        (r"(?i)(token\s*[:=]\s*)\S+", _REDACTED),
+        (r"(?i)(password\s*[:=]\s*)\S+", _REDACTED),
+        (r"(?i)(secret\s*[:=]\s*)\S+", _REDACTED),
     ]
     result = msg
     for pattern, replacement in redactions:
