@@ -42,7 +42,7 @@ def _lookup_cwes(cwe_ids):
     return cwes
 
 
-def enrich_cve(cve_id: str) -> VulnerabilityReport | None:
+def enrich_cve(cve_id: str, weights: dict | None = None) -> VulnerabilityReport | None:
     cve = nvd_get(cve_id)
     if cve is None:
         return None
@@ -69,7 +69,7 @@ def enrich_cve(cve_id: str) -> VulnerabilityReport | None:
     report = VulnerabilityReport(
         cve=cve,
         cwes=cwes,
-        risk_score=compute_risk_score(cve),
+        risk_score=compute_risk_score(cve, weights=weights),
         risk_factors=compute_risk_factors(cve),
     )
     return report

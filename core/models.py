@@ -97,18 +97,28 @@ class SecurityFinding:
     references: list[str] = field(default_factory=list)
 
 
-def compute_risk_score(cve: CVEInfo) -> float:
+DEFAULT_RISK_WEIGHTS = {
+    "cvss": 0.4,
+    "kev": 30.0,
+    "epss_cap": 30.0,
+    "exploit": 15.0,
+    "severity": 10.0,
+}
+
+
+def compute_risk_score(cve: CVEInfo, weights: dict | None = None) -> float:
+    w = weights or DEFAULT_RISK_WEIGHTS
     score = 0.0
     if cve.cvss_score:
-        score += cve.cvss_score * 0.4
+        score += cve.cvss_score * w.get("cvss", 0.4)
     if cve.in_kev:
-        score += 30.0
+        score += w.get("kev", 30.0)
     if cve.epss_score is not None:
-        score += min(cve.epss_score * 100, 30.0)
+        score += min(cve.epss_score * 100, w.get("epss_cap", 30.0))
     if cve.exploit_status in (ExploitStatus.POC_PUBLIC, ExploitStatus.EXPLOIT_AVAILABLE):
-        score += 15.0
+        score += w.get("exploit", 15.0)
     if cve.severity in (Severity.CRITICAL, Severity.HIGH):
-        score += 10.0
+        score += w.get("severity", 10.0)
     return min(score, 100.0)
 
 

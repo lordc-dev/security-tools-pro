@@ -384,8 +384,8 @@ def _enrich_cve(cve: CVEInfo, epss_results: dict, kev_results: dict) -> None:
     _enrich_ghsa(cve, ghsa_advisories)
 
 
-def _cve_result_dict(cve: CVEInfo) -> dict:
-    score = compute_risk_score(cve)
+def _cve_result_dict(cve: CVEInfo, weights: dict | None = None) -> dict:
+    score = compute_risk_score(cve, weights=weights)
     factors = compute_risk_factors(cve)
     return {
         "id": cve.id,
@@ -409,7 +409,7 @@ def _cve_result_dict(cve: CVEInfo) -> dict:
     }
 
 
-def prioritize_cves(cve_ids: list[str]) -> list[dict]:
+def prioritize_cves(cve_ids: list[str], weights: dict | None = None) -> list[dict]:
     if not cve_ids:
         return []
     epss_results = epss_score(cve_ids)
@@ -421,7 +421,7 @@ def prioritize_cves(cve_ids: list[str]) -> list[dict]:
             results.append({"id": cve_id, "error": "Not found in NVD", "risk_score": 0, "cvss_score": None, "severity": "INFO", "epss_score": 0, "epss_percentile": 0, "in_kev": False, "exploit_available": False, "exploit_count": 0, "cwe_ids": [], "affected_products": [], "references": [], "description": "", "risk_factors": ["Not found in NVD"]})
             continue
         _enrich_cve(cve, epss_results, kev_results)
-        results.append(_cve_result_dict(cve))
+        results.append(_cve_result_dict(cve, weights=weights))
     results.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
     return results
 
@@ -487,7 +487,7 @@ def format_cve(cve: CVEInfo) -> str:
     return out
 
 
-def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int = 20) -> list[dict]:
+def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int = 20, weights: dict | None = None) -> list[dict]:
     cves = nvd_recent(days=days, severity=severity, limit=limit)
     if not cves:
         return []
@@ -497,7 +497,7 @@ def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int 
     results = []
     for cve in cves:
         _enrich_cve(cve, epss_results, kev_results)
-        score = compute_risk_score(cve)
+        score = compute_risk_score(cve, weights=weights)
         factors = compute_risk_factors(cve)
         results.append({
             "id": cve.id,
