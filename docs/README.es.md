@@ -59,6 +59,8 @@ SONARQUBE_TOKEN=squ_xxxxxxxxxxxxx
 
 Copia `.env.example` y rellena tus valores. Solo se necesitan credenciales de SonarQube; todas las demás herramientas funcionan directamente con APIs públicas.
 
+> **Las credenciales van solo en `.env`** — nunca dentro del bloque de configuración del cliente MCP. El servidor lee `.env` automáticamente vía `python-dotenv` (`core/config.py`). El JSON de `mcpServers` abajo contiene solo `command` y `args` — sin campo `env`, sin secretos en archivos de config.
+
 Añade a la configuración de tu cliente MCP:
 
 ```json
