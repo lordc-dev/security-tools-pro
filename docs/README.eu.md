@@ -312,3 +312,21 @@ Defektuzko pisuak `core/models.py:DEFAULT_RISK_WEIGHTS`-en definituta.
 | nuclei       | `brew install nuclei`     |
 
 API-soilik diren tresnak (NVD, EPSS, KEV, GHSA, OSV, CWE) ez dute instalaziorik behar.
+
+---
+
+## MCP Zerbitzari Lagunak
+
+MCP zerbitzari hauek Security Tools Pro-rekin modu naturalean konbinatzen dira IA segurtasun-fluxu oso baterako:
+
+### Backup Pro
+
+**Versionatu fitxategi bakoitza IAk ukitu baino lehen.** Bilatu backup-ak, konparatu aldaketak, leheneratu klik batekin. SHA-256 osotasuna, deduplikazioa, batch eragiketak. Undo stack-ak uneko saioa babesten du; Backup Pro-k saioen artean babesten du.
+
+GitHub: https://github.com/lordc-dev/backup-pro
+
+### Filesystem Pro
+
+**Eman IA laguntzaileei zure kode-fitxategiak irakurtzeko, bilatzeko, editatzeko eta antolatzeko modu segurua — garatzaile bat bezala.** Ripgrep bilaketa, tree-sitter kode-ulermena 17 hizkuntzatan, AST-n oinarritutako edizio kirurgikoak, eta undo stack osoa. Backup Pro-k zure fitxategiak versionatzen ditu; Filesystem Pro-k IAri editatzeko tresnak ematen dizkio modu seguruan.
+
+GitHub: https://github.com/lordc-dev/filesystem-pro

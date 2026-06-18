@@ -312,3 +312,21 @@ Valeurs par défaut définies dans `core/models.py:DEFAULT_RISK_WEIGHTS`.
 | nuclei       | `brew install nuclei`     |
 
 Les outils API-only (NVD, EPSS, KEV, GHSA, OSV, CWE) ne nécessitent aucune installation.
+
+---
+
+## Serveurs MCP Compagnons
+
+Ces serveurs MCP se combinent naturellement avec Security Tools Pro pour un flux de travail complet de sécurité avec IA :
+
+### Backup Pro
+
+**Versionnez chaque fichier avant que l'IA n'y touche.** Recherchez des backups, comparez les changements, restaurez en un clic. Intégrité SHA-256, déduplication, opérations batch. L'undo stack protège votre session actuelle ; Backup Pro protège entre les sessions.
+
+GitHub : https://github.com/lordc-dev/backup-pro
+
+### Filesystem Pro
+
+**Donnez aux assistants IA un accès sûr pour lire, rechercher, éditer et organiser vos fichiers de code — comme un développeur.** Recherche avec ripgrep, compréhension de code avec tree-sitter en 17 langages, éditions chirurgicales basées sur AST, et un undo stack complet. Backup Pro versionne vos fichiers ; Filesystem Pro donne à l'IA les outils pour les éditer en toute sécurité.
+
+GitHub : https://github.com/lordc-dev/filesystem-pro

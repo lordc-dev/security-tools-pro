@@ -306,3 +306,21 @@ Default weights defined in `core/models.py:DEFAULT_RISK_WEIGHTS`.
 | nuclei       | `brew install nuclei`     |
 
 API-only tools (NVD, EPSS, KEV, GHSA, OSV, CWE) require no installation.
+
+---
+
+## Companion MCP Servers
+
+These MCP servers pair naturally with Security Tools Pro for a complete AI security workflow:
+
+### Backup Pro
+
+**Version every file before AI touches it.** Search backups, diff changes, restore with one click. SHA-256 integrity, deduplication, batch operations. The undo stack protects your current session; Backup Pro protects across sessions.
+
+GitHub: https://github.com/lordc-dev/backup-pro
+
+### Filesystem Pro
+
+**Give AI assistants safe access to read, search, edit, and organize your code files — just like a developer would.** Ripgrep search, tree-sitter code understanding in 17 languages, AST-based surgical edits, and a full undo stack. Backup Pro versions your files; Filesystem Pro gives AI the tools to edit them safely.
+
+GitHub: https://github.com/lordc-dev/filesystem-pro
