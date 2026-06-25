@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
+import time
 import urllib.request
 import urllib.parse
-from core.cache import get_json, set_json, rate_limit
+import urllib.error
+from core.cache import get_json, set_json, rate_limit, set_rate_limit
 from core.models import CVEInfo, Severity, ExploitStatus, compute_risk_score, compute_risk_factors
 from core.validation import validate_url_https, safe_error
 
@@ -16,8 +20,23 @@ _SAFE_OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler, urllib.r
 
 _HEADERS = {"User-Agent": "security-tools-pro-mcp/1.0", "Accept": "application/json"}
 
+_NVD_API_KEY = os.environ.get("NVD_API_KEY", "")
+_NVD_HTTP_TIMEOUT = float(os.environ.get("NVD_HTTP_TIMEOUT", "45" if not _NVD_API_KEY else "20"))
+_NVD_MAX_RETRIES = int(os.environ.get("NVD_MAX_RETRIES", "1"))
+_DEFAULT_RETRY_BACKOFF = 2.0
 
-def _fetch(url: str, ttl: float = 3600.0, cache_key: str | None = None, bucket: str = "default") -> dict | list | None:
+if _NVD_API_KEY:
+    set_rate_limit("nvd", 50, 30.0)
+
+
+def _http_get(url: str, headers: dict, timeout: float) -> dict | list | None:
+    """Single HTTP GET."""
+    req = urllib.request.Request(url, headers=headers)
+    with _SAFE_OPENER.open(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _fetch(url: str, ttl: float = 3600.0, cache_key: str | None = None, bucket: str = "default", timeout: float = 30.0) -> dict | list | None:
     try:
         url = validate_url_https(url)
     except ValueError:
@@ -27,15 +46,25 @@ def _fetch(url: str, ttl: float = 3600.0, cache_key: str | None = None, bucket: 
     cached = get_json(cache_key)
     if cached is not None:
         return cached
-    rate_limit(bucket)
-    try:
-        req = urllib.request.Request(url, headers=_HEADERS)
-        with _SAFE_OPENER.open(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        set_json(cache_key, data, ttl)
-        return data
-    except Exception:
+    if not rate_limit(bucket):
         return None
+    headers = dict(_HEADERS)
+    if bucket == "nvd" and _NVD_API_KEY:
+        headers["apiKey"] = _NVD_API_KEY
+    max_retries = _NVD_MAX_RETRIES if bucket == "nvd" else 0
+    for attempt in range(max_retries + 1):
+        try:
+            data = _http_get(url, headers, timeout)
+            set_json(cache_key, data, ttl)
+            return data
+        except (socket.timeout, urllib.error.URLError, TimeoutError):
+            if attempt < max_retries:
+                time.sleep(_DEFAULT_RETRY_BACKOFF * (attempt + 1))
+                continue
+            return None
+        except Exception:
+            return None
+    return None
 
 
 def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "default") -> dict | list | None:
@@ -48,7 +77,8 @@ def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "defaul
     cached = get_json(cache_key)
     if cached is not None:
         return cached
-    rate_limit(bucket)
+    if not rate_limit(bucket):
+        return None
     try:
         data = json.dumps(body).encode()
         req = urllib.request.Request(url, data=data, headers={**_HEADERS, "Content-Type": "application/json"})
@@ -119,7 +149,7 @@ def _assign_nvd_fields(cve: CVEInfo, vuln: dict) -> None:
 
 
 def nvd_get(cve_id: str) -> CVEInfo | None:
-    data = _fetch(f"{NVD_API}?cveId={cve_id}", ttl=3600.0, cache_key=f"nvd:{cve_id}", bucket="nvd")
+    data = _fetch(f"{NVD_API}?cveId={cve_id}", ttl=3600.0, cache_key=f"nvd:{cve_id}", bucket="nvd", timeout=_NVD_HTTP_TIMEOUT)
     if data is None:
         return None
     vulnerabilities = data.get("vulnerabilities", [])
@@ -266,20 +296,28 @@ def _nvd_parse_inline(cve_data: dict) -> CVEInfo | None:
 
 
 def nvd_search(keyword: str, severity: str | None = None, limit: int = 20) -> list[CVEInfo]:
-    params = [f"keywordSearch={urllib.parse.quote(keyword)}"]
+    words = keyword.strip().split()
+    search_term = words[0] if words else keyword.strip()
+    params = [f"keywordSearch={urllib.parse.quote(search_term)}"]
     if severity:
         params.append(f"cvssV3Severity={severity}")
     params.append(f"resultsPerPage={limit}")
     url = f"{NVD_API}?{'&'.join(params)}"
-    data = _fetch(url, ttl=3600.0, cache_key=f"nvd_search:{url}", bucket="nvd")
+    data = _fetch(url, ttl=3600.0, cache_key=f"nvd_search:{url}", bucket="nvd", timeout=_NVD_HTTP_TIMEOUT)
     if data is None or "vulnerabilities" not in data:
         return []
     results = []
+    all_words = [w.lower() for w in words[1:]] if len(words) > 1 else []
     for v in data["vulnerabilities"][:limit]:
         cve_data = v.get("cve", {})
         cve = _nvd_parse_inline(cve_data)
-        if cve:
-            results.append(cve)
+        if not cve:
+            continue
+        if all_words:
+            desc_lower = cve.description.lower()
+            if not all(w in desc_lower for w in all_words):
+                continue
+        results.append(cve)
     return results
 
 
@@ -292,7 +330,7 @@ def nvd_recent(days: int = 7, severity: str | None = None, limit: int = 20) -> l
         params.append(f"cvssV3Severity={severity}")
     params.append(f"resultsPerPage={limit}")
     url = f"{NVD_API}?{'&'.join(params)}"
-    data = _fetch(url, ttl=1800.0, cache_key=f"nvd_recent:{url}", bucket="nvd")
+    data = _fetch(url, ttl=1800.0, cache_key=f"nvd_recent:{url}", bucket="nvd", timeout=_NVD_HTTP_TIMEOUT)
     if data is None or "vulnerabilities" not in data:
         return []
     results = []

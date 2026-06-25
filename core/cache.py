@@ -24,7 +24,7 @@ _lock = Lock()
 _rate_lock = threading.Lock()
 _rate_tracker: dict[str, list[float]] = {}
 _rate_limits: dict[str, tuple[int, float]] = {
-    "nvd": (5, 1.0),
+    "nvd": (5, 30.0),
     "epss": (10, 1.0),
     "ghsa": (8, 1.0),
     "osv": (10, 1.0),
@@ -33,7 +33,8 @@ _rate_limits: dict[str, tuple[int, float]] = {
 }
 
 
-def _apply_rate_limit(bucket: str) -> None:
+def _apply_rate_limit(bucket: str) -> bool:
+    """Check rate limit. Returns True if allowed, False if over limit (non-blocking)."""
     with _rate_lock:
         now = time.monotonic()
         if bucket not in _rate_tracker:
@@ -41,17 +42,20 @@ def _apply_rate_limit(bucket: str) -> None:
         max_calls, window = _rate_limits.get(bucket, _rate_limits["default"])
         _rate_tracker[bucket] = [t for t in _rate_tracker[bucket] if now - t < window]
         if len(_rate_tracker[bucket]) >= max_calls:
-            oldest = _rate_tracker[bucket][0]
-            wait = window - (now - oldest)
-            if wait > 0:
-                time.sleep(wait)
-                now = time.monotonic()
+            return False
         _rate_tracker[bucket].append(now)
+        return True
 
 
-def rate_limit(bucket: str = "default") -> None:
-    """Apply rate limiting before an API call. Bucket determines the rate limit policy."""
-    _apply_rate_limit(bucket)
+def rate_limit(bucket: str = "default") -> bool:
+    """Check rate limit before an API call. Returns True if allowed, False if over limit."""
+    return _apply_rate_limit(bucket)
+
+
+def set_rate_limit(bucket: str, max_calls: int, window: float) -> None:
+    """Update rate limit for a bucket at runtime."""
+    with _rate_lock:
+        _rate_limits[bucket] = (max_calls, window)
 
 
 def _get_conn() -> sqlite3.Connection:
