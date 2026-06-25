@@ -45,13 +45,22 @@ def _parse_trufflehog_output(stdout: str) -> list[dict]:
 def trufflehog_scan(directory: str, only_verified: bool = True, extra_args: list[str] | None = None) -> str:
     if not _is_available("trufflehog"):
         return "Error: trufflehog is not installed. Install with: `brew install trufflehog` or `pip install trufflehog`"
-    cmd = ["trufflehog", "filesystem", directory, "--json"]
+    import tempfile, os
+    _EXCLUDE_PATTERNS = ["node_modules/", "dist/", "build/", ".git/", ".next/", ".nuxt/", "__pycache__/", ".venv/", "venv/", ".pytest_cache/", "coverage/", ".turbo/", ".cache/"]
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as excl:
+        excl.write("\n".join(_EXCLUDE_PATTERNS))
+        exclude_path = excl.name
+    cmd = ["trufflehog", "filesystem", directory, "--json", "--exclude-paths", exclude_path]
     if only_verified:
         cmd.append("--only-verified")
     for arg in (extra_args or []):
         if arg in _TRUFFLEHOG_ALLOWED:
             cmd.append(arg)
     result = _run(cmd, timeout=300)
+    try:
+        os.unlink(exclude_path)
+    except OSError:
+        pass
     if result.get("error"):
         return f"Error: {result['error']}"
     findings = _parse_trufflehog_output(result["stdout"])
@@ -110,7 +119,7 @@ def gitleaks_scan(directory: str, report_format: str = "sarif", extra_args: list
     import tempfile
     with tempfile.NamedTemporaryFile(suffix=f".{report_format}", delete=False, mode="w") as tmp:
         report_path = tmp.name
-    cmd = ["gitleaks", "detect", "--source", directory, "--report-format", report_format, "--report-path", report_path, "--no-banner"]
+    cmd = ["gitleaks", "detect", "--source", directory, "--no-git", "--report-format", report_format, "--report-path", report_path, "--no-banner"]
     for arg in (extra_args or []):
         if arg in _GITLEAKS_ALLOWED:
             cmd.append(arg)
@@ -135,15 +144,20 @@ def gitleaks_scan(directory: str, report_format: str = "sarif", extra_args: list
 
 _SEMGREP_ALLOWED = {"--dryrun", "--strict", "--disable-nosem", "--time", "--verbose", "--debug"}
 
+DEFAULT_EXCLUDES = ["node_modules", "dist", "build", ".git", ".next", ".nuxt", "__pycache__", ".venv", "venv", ".pytest_cache", "coverage", ".turbo", ".cache"]
+
 
 def semgrep_scan(directory: str, config: str = "auto", extra_args: list[str] | None = None) -> str:
     if not _is_available("semgrep"):
         return "Error: semgrep is not installed. Install with: `pip install semgrep`"
-    cmd = ["semgrep", "scan", "--config", config, "--json", directory]
+    cmd = ["semgrep", "scan", "--config", config]
+    for ex in DEFAULT_EXCLUDES:
+        cmd.extend(["--exclude", ex])
+    cmd.extend(["--json", directory])
     for arg in (extra_args or []):
         if arg in _SEMGREP_ALLOWED:
             cmd.append(arg)
-    result = _run(cmd, timeout=600)
+    result = _run(cmd, timeout=300)
     if result.get("error"):
         return f"Error: {result['error']}"
     try:

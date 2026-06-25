@@ -67,11 +67,13 @@ def _format_grype_match(m: dict) -> str:
 
 _TRIVY_ALLOWED = {"--skip-db-update", "--skip-policy-update", "--no-progress", "--debug", "--quiet"}
 
+_TRIVY_SKIP_DIRS = ",".join(["node_modules", "dist", "build", ".git", ".next", ".nuxt", "__pycache__", ".venv", "venv", ".pytest_cache", "coverage", ".turbo", ".cache"])
+
 
 def trivy_scan(target: str, scan_type: str = "fs", severity: str = "", extra_args: list[str] | None = None) -> str:
     if not _is_available("trivy"):
         return "Error: trivy is not installed. Install with: `brew install trivy`"
-    cmd = ["trivy", scan_type, "--format", "json", "--quiet"]
+    cmd = ["trivy", scan_type, "--format", "json", "--quiet", "--skip-dirs", _TRIVY_SKIP_DIRS]
     if severity:
         cmd += ["--severity", severity]
     for arg in (extra_args or []):
@@ -102,7 +104,7 @@ _GRYPE_ALLOWED = {"--quiet", "--verbose", "--fail-on", "--by-cve"}
 def grype_scan(target: str, output_format: str = "json", fail_on: str = "", extra_args: list[str] | None = None) -> str:
     if not _is_available("grype"):
         return "Error: grype is not installed. Install with: `brew install grype`"
-    cmd = ["grype", target, "--output", output_format]
+    cmd = ["grype", target, "--output", output_format, "--exclude", "/node_modules/", "--exclude", "/dist/", "--exclude", "/build/", "--exclude", "/.git/", "--exclude", "/.venv/", "--exclude", "/venv/"]
     if fail_on:
         cmd += ["--fail-on", fail_on]
     for arg in (extra_args or []):
