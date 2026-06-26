@@ -101,15 +101,9 @@ class TestValidateUrlHttps:
 class TestValidateHost:
     @pytest.mark.parametrize("host", [
         "example.com",
-        "localhost",
-        "192.168.1.1",
-        "10.0.0.1",
-        "255.255.255.255",
-        "::1",
-        "2001:db8::1",
         "sub.example.com",
-        "[::1]",
-        "[192.168.1.1]",
+        "8.8.8.8",
+        "1.1.1.1",
     ])
     def test_valid(self, host):
         result = validate_host(host)
@@ -125,9 +119,17 @@ class TestValidateHost:
         ".invalid",
         "invalid.",
         "host with spaces",
+        "localhost",
+        "192.168.1.1",
+        "10.0.0.1",
+        "255.255.255.255",
+        "::1",
+        "2001:db8::1",
+        "[::1]",
+        "[192.168.1.1]",
     ])
     def test_invalid(self, host):
-        with pytest.raises(ValueError, match="Invalid hostname"):
+        with pytest.raises(ValueError, match="Invalid hostname|Blocked"):
             validate_host(host)
 
     def test_strips_whitespace(self):

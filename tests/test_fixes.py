@@ -124,7 +124,7 @@ class TestHttpHeadersUrllibFallback:
         assert "HSTS" in result
         assert "max-age=31536000" in result
 
-    @patch("modules.recon.urllib.request.urlopen")
+    @patch("modules.recon.urllib.request.build_opener")
     @patch("modules.recon._run")
     def test_curl_failure_triggers_urllib_head(self, mock_run, mock_urlopen):
         mock_run.return_value = {
@@ -140,17 +140,17 @@ class TestHttpHeadersUrllibFallback:
         ]
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_urlopen.return_value = mock_resp
+        mock_urlopen.return_value.open.return_value = mock_resp
 
         result = http_headers("https://example.com")
 
         assert "HSTS" in result
         assert "CSP" in result
         # First urllib attempt must be HEAD
-        first_req = mock_urlopen.call_args_list[0][0][0]
+        first_req = mock_urlopen.return_value.open.call_args_list[0][0][0]
         assert first_req.method == "HEAD"
 
-    @patch("modules.recon.urllib.request.urlopen")
+    @patch("modules.recon.urllib.request.build_opener")
     @patch("modules.recon._run")
     def test_head_rejected_triggers_get_with_range(self, mock_run, mock_urlopen):
         mock_run.return_value = {
@@ -166,17 +166,17 @@ class TestHttpHeadersUrllibFallback:
         ]
         mock_resp.__enter__ = MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_urlopen.side_effect = [Exception("HEAD rejected by server"), mock_resp]
+        mock_urlopen.return_value.open.side_effect = [Exception("HEAD rejected by server"), mock_resp]
 
         result = http_headers("https://example.com")
 
         assert "HSTS" in result
-        assert mock_urlopen.call_count == 2
+        assert mock_urlopen.return_value.open.call_count == 2
         # Second request must carry Range: bytes=0-0
-        second_req = mock_urlopen.call_args_list[1][0][0]
+        second_req = mock_urlopen.return_value.open.call_args_list[1][0][0]
         assert second_req.headers.get("Range") == "bytes=0-0"
 
-    @patch("modules.recon.urllib.request.urlopen")
+    @patch("modules.recon.urllib.request.build_opener")
     @patch("modules.recon._run")
     def test_both_curl_and_urllib_fail(self, mock_run, mock_urlopen):
         mock_run.return_value = {
@@ -185,7 +185,7 @@ class TestHttpHeadersUrllibFallback:
             "stdout": "",
             "stderr": "TLS handshake fail",
         }
-        mock_urlopen.side_effect = Exception("urllib also fail")
+        mock_urlopen.return_value.open.side_effect = Exception("urllib also fail")
 
         result = http_headers("https://example.com")
 
@@ -193,7 +193,7 @@ class TestHttpHeadersUrllibFallback:
         # Error chain prefers result["error"] when present
         assert "curl TLS fail" in result
 
-    @patch("modules.recon.urllib.request.urlopen")
+    @patch("modules.recon.urllib.request.build_opener")
     @patch("modules.recon._run")
     def test_curl_nonzero_with_stdout_uses_curl_output(self, mock_run, mock_urlopen):
         # If curl returns non-zero but produced stdout, we should use that (no fallback)

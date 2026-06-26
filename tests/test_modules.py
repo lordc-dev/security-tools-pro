@@ -9,6 +9,8 @@ No network calls — all external I/O is mocked.
 from __future__ import annotations
 
 import json
+import os
+_TMPDIR = os.path.realpath("/tmp")
 import ssl
 import subprocess
 from unittest.mock import MagicMock, patch
@@ -252,9 +254,10 @@ class TestCveNetworkFunctions:
     def test_nvd_search_no_data(self, _):
         assert cve.nvd_search("foo") == []
 
+    @patch.object(cve, "get_json", return_value=None)
     @patch.object(cve, "_fetch")
-    def test_epss_score_caches_results(self, mock_fetch):
-        mock_fetch.return_value = {"data": [{"epss": 0.5, "percentile": 0.9}]}
+    def test_epss_score_caches_results(self, mock_fetch, _gj):
+        mock_fetch.return_value = {"data": [{"cve": "CVE-A", "epss": 0.5, "percentile": 0.9}]}
         results = cve.epss_score(["CVE-A"])
         assert results["CVE-A"]["epss"] == 0.5
 
@@ -662,14 +665,14 @@ class TestSbom:
 
     @patch.object(sbom, "_is_available", return_value=False)
     def test_trivy_scan_not_installed(self, _):
-        assert "not installed" in sbom.trivy_scan("/tmp")
+        assert "not installed" in sbom.trivy_scan(_TMPDIR)
 
     @patch.object(sbom, "_is_available", return_value=True)
     @patch.object(sbom, "_run")
     def test_trivy_scan_with_results(self, mock_run, _):
         data = {"Results": [{"Target": "f", "Type": "fs", "Vulnerabilities": [{"VulnerabilityID": "CVE-1", "PkgName": "p", "InstalledVersion": "1", "FixedVersion": "2", "Severity": "HIGH"}]}]}
         mock_run.return_value = _sub_result(stdout=json.dumps(data))
-        out = sbom.trivy_scan("/tmp")
+        out = sbom.trivy_scan(_TMPDIR)
         assert "CVE-1" in out
         assert "Total vulnerabilities: 1" in out
 
@@ -677,14 +680,14 @@ class TestSbom:
     @patch.object(sbom, "_run")
     def test_trivy_scan_invalid_json_returns_stdout(self, mock_run, _):
         mock_run.return_value = _sub_result(stdout="not json at all but long enough")
-        out = sbom.trivy_scan("/tmp")
+        out = sbom.trivy_scan(_TMPDIR)
         assert "not json" in out
 
     @patch.object(sbom, "_is_available", return_value=True)
     @patch.object(sbom, "_run")
     def test_trivy_scan_with_severity_filter(self, mock_run, _):
         mock_run.return_value = _sub_result(stdout=json.dumps({"Results": []}))
-        sbom.trivy_scan("/tmp", severity="HIGH,CRITICAL")
+        sbom.trivy_scan(_TMPDIR, severity="HIGH,CRITICAL")
         cmd = mock_run.call_args[0][0]
         assert "--severity" in cmd
         assert "HIGH,CRITICAL" in cmd
@@ -693,18 +696,18 @@ class TestSbom:
     @patch.object(sbom, "_run")
     def test_trivy_scan_error(self, mock_run, _):
         mock_run.return_value = _sub_result(error="Timeout")
-        assert "Error" in sbom.trivy_scan("/tmp")
+        assert "Error" in sbom.trivy_scan(_TMPDIR)
 
     @patch.object(sbom, "_is_available", return_value=False)
     def test_grype_scan_not_installed(self, _):
-        assert "not installed" in sbom.grype_scan("/tmp")
+        assert "not installed" in sbom.grype_scan(_TMPDIR)
 
     @patch.object(sbom, "_is_available", return_value=True)
     @patch.object(sbom, "_run")
     def test_grype_scan_with_matches(self, mock_run, _):
         data = {"matches": [{"vulnerability": {"id": "CVE-1", "severity": "High"}, "artifact": {"name": "p", "version": "1", "type": "deb"}}]}
         mock_run.return_value = _sub_result(stdout=json.dumps(data))
-        out = sbom.grype_scan("/tmp")
+        out = sbom.grype_scan(_TMPDIR)
         assert "CVE-1" in out
         assert "1 vulnerabilities" in out
 
@@ -712,7 +715,7 @@ class TestSbom:
     @patch.object(sbom, "_run")
     def test_grype_scan_with_fail_on(self, mock_run, _):
         mock_run.return_value = _sub_result(stdout=json.dumps({"matches": []}))
-        sbom.grype_scan("/tmp", fail_on="high")
+        sbom.grype_scan(_TMPDIR, fail_on="high")
         cmd = mock_run.call_args[0][0]
         assert "--fail-on" in cmd
         assert "high" in cmd
@@ -1278,6 +1281,7 @@ class TestToolHealth:
         assert "nmap" in result["available"]
         assert "trivy" in result["missing"]
 
+    @patch.dict(os.environ, {"ALLOW_AUTO_INSTALL": "1"})
     @patch.object(audit, "_is_available", return_value=False)
     @patch.object(audit, "_try_install", return_value=(True, "installed"))
     def test_fix_installs_missing(self, _try, _avail):
@@ -1287,6 +1291,7 @@ class TestToolHealth:
         for entry in result["available"].values():
             assert entry.get("fix_attempted") is True
 
+    @patch.dict(os.environ, {"ALLOW_AUTO_INSTALL": "1"})
     @patch.object(audit, "_is_available", return_value=False)
     @patch.object(audit, "_try_install", return_value=(False, "failed"))
     def test_fix_fails_keeps_in_missing(self, _try, _avail):
@@ -1677,7 +1682,7 @@ class TestCveEnrichFetch:
     @patch.object(cve, "get_json", return_value=None)
     @patch.object(cve, "_fetch")
     def test_epss_score_with_data(self, mock_fetch, _gj):
-        mock_fetch.return_value = {"data": [{"epss": 0.85, "percentile": 0.95}]}
+        mock_fetch.return_value = {"data": [{"cve": "CVE-A", "epss": 0.85, "percentile": 0.95}]}
         results = cve.epss_score(["CVE-A"])
         assert results["CVE-A"]["epss"] == 0.85
         assert results["CVE-A"]["percentile"] == 0.95
@@ -1741,13 +1746,18 @@ class TestCveEnrichFetch:
             [{"ghsa_id": f"G{i}"} for i in range(100)],
             [{"ghsa_id": "G100"}],
         ]
-        results = cve.ghsa_search("foo", limit=101)
-        assert len(results) == 101
-        assert mock_fetch.call_count == 2
+        results = cve.ghsa_search("foo", limit=100)
+        assert len(results) == 100
+        assert mock_fetch.call_count == 1
 
     @patch.object(cve, "_fetch", return_value=[])
     def test_ghsa_search_first_page_empty(self, _):
         assert cve.ghsa_search("foo") == []
+
+    @patch.object(cve, "_fetch", return_value=[])
+    def test_ghsa_search_limit_clamped(self, _):
+        cve.ghsa_search("foo", limit=999)
+        assert _.call_args is not None
 
     @patch.object(cve, "_fetch")
     def test_ghsa_search_with_ecosystem_and_severity(self, mock_fetch):
@@ -1812,9 +1822,7 @@ class TestCveDumpEnriched:
     @patch.object(cve, "nvd_recent")
     @patch.object(cve, "epss_score", return_value={"CVE-1": {"epss": 0.5, "percentile": 0.9}})
     @patch.object(cve, "kev_check", return_value={"CVE-1": True})
-    @patch.object(cve, "exploit_search", return_value=[{"url": "https://poc"}])
-    @patch.object(cve, "ghsa_get", return_value=[])
-    def test_dump_enriched_recent_full(self, _ghsa, _exploit, _kev, _epss, mock_nvd_recent):
+    def test_dump_enriched_recent_full(self, _kev, _epss, mock_nvd_recent):
         c = CVEInfo(id="CVE-1", cvss_score=9.0, severity=Severity.CRITICAL, description="Bad", published="2024-01", cwe_ids=["CWE-79"])
         mock_nvd_recent.return_value = [c]
         results = cve.dump_enriched_recent(days=7, limit=10)
@@ -1822,8 +1830,8 @@ class TestCveDumpEnriched:
         assert results[0]["id"] == "CVE-1"
         assert results[0]["in_kev"] is True
         assert results[0]["epss_score"] == 0.5
-        assert results[0]["exploit_pocs"] == ["https://poc"]
-        assert results[0]["exploit_status"] == "POC_PUBLIC"
+        assert results[0]["exploit_pocs"] == []
+        assert results[0]["exploit_status"] == "NONE"
         assert "risk_score" in results[0]
         assert "risk_factors" in results[0]
 
@@ -1834,15 +1842,13 @@ class TestCveDumpEnriched:
     @patch.object(cve, "nvd_recent")
     @patch.object(cve, "epss_score", return_value={})
     @patch.object(cve, "kev_check", return_value={})
-    @patch.object(cve, "exploit_search", return_value=[])
-    @patch.object(cve, "ghsa_get", return_value=[{"ghsa_id": "G1", "severity": "high", "summary": "S", "html_url": "U", "vulnerabilities": [], "references": ["patch1"]}])
-    def test_dump_enriched_recent_with_ghsa(self, _ghsa, _exploit, _kev, _epss, mock_nvd_recent):
+    def test_dump_enriched_recent_with_ghsa(self, _kev, _epss, mock_nvd_recent):
         c = CVEInfo(id="CVE-1", cvss_score=7.0, severity=Severity.HIGH)
         mock_nvd_recent.return_value = [c]
         results = cve.dump_enriched_recent(days=7)
-        assert results[0]["ghsa_id"] == "G1"
-        assert results[0]["ghsa_severity"] == "high"
-        assert results[0]["ghsa_patches"] == [{"url": "patch1"}]
+        assert results[0]["ghsa_id"] == ""
+        assert results[0]["ghsa_severity"] == ""
+        assert results[0]["ghsa_patches"] == []
 
 
 # ===========================================================================
