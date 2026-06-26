@@ -457,7 +457,8 @@ def sonar_rules(
 def sonar_issue_detail(issue_key: str) -> str:
     url, token = _sonar_require()
     rate_limit("sonar")
-    full_url = f"{url}/api/issues/search?key={issue_key}&ps=1"
+    qs = urllib.parse.urlencode({"key": issue_key, "ps": 1})
+    full_url = f"{url}/api/issues/search?{qs}"
     data = _fetch(full_url, token=token)
     if data is None:
         return f"Issue '{issue_key}' not found."
