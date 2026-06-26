@@ -1965,6 +1965,7 @@ class TestCweFindById:
 
     @patch.object(cwe, "_load_data", return_value=[{"CWE-ID": "not-a-number"}])
     def test_find_by_id_handles_non_numeric(self, _):
+        cwe._ID_INDEX = None  # reset cached index so mocked data is used
         assert cwe._find_by_id(79) is None
 
 

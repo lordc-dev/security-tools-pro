@@ -72,7 +72,6 @@ class TestValidateCweId:
 class TestValidateUrlHttps:
     @pytest.mark.parametrize("url", [
         "https://example.com",
-        "http://localhost:8080",
         "https://api.example.com/v1/data",
     ])
     def test_valid(self, url):
@@ -87,9 +86,15 @@ class TestValidateUrlHttps:
         "ssh://example.com",
         "//example.com",
         "example.com",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://10.0.0.1/",
+        "http://192.168.1.1/",
+        "http://[::1]/",
     ])
     def test_invalid(self, url):
-        with pytest.raises(ValueError, match="Blocked scheme|HTTPS"):
+        with pytest.raises(ValueError, match="Blocked scheme|HTTPS|Blocked"):
             validate_url_https(url)
 
 
