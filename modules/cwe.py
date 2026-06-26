@@ -19,6 +19,25 @@ CWE_CSV_SHA256 = os.environ.get("CWE_CSV_SHA256", "")
 TTL = 86400.0
 _COL_ABSTRACTION = "Weakness Abstraction"
 
+# ponytail: top25 is annual, 7d cache is enough
+_TOP25_TTL = 604800.0  # 7 days
+_TOP25_BASE = "https://cwe.mitre.org/top25/archive/{year}/{year}_{sfx}.html"
+_TOP25_SUFFIXES = ("cwe_top25", "kev_list", "onthecusp_list")
+_TOP25_LISTS = ("top25", "kev_top10", "on_the_cusp")
+# Matches: <td...><b>1</b></td> <td...><a ...>CWE-79</a></td> <td>Name</td> <td...>60.38</td> <td...>7</td> <td...>0|+1|-3|N/A</td>
+_ROW_RE = re.compile(
+    r"<td[^>]*><b>(\d+)</b></td>\s*"
+    r"<td[^>]*><a[^>]*>CWE-(\d+)</a></td>\s*"
+    r"<td>(.*?)</td>\s*"
+    r"<td[^>]*>([\d.]+)</td>\s*"
+    r"<td[^>]*>(\d+)</td>\s*"
+    r"<td[^>]*>([+-]?\d+|N/A)</td>",
+    re.DOTALL,
+)
+
+# O(1) CWE-ID → row index, built once per catalog load
+_ID_INDEX: dict[int, dict] | None = None
+
 
 def _seg_key(seg: str, key: str, terminators: list[str]) -> str | None:
     pattern = key + r":(.+)(?=" + "|".join(terminators) + "|$)"
@@ -286,6 +305,8 @@ def _load_data() -> list[dict]:
     set_config("cwe:catalog:sha256", content_hash)
     set_config("cwe:catalog:fetched_at", datetime.now(timezone.utc).isoformat())
     set_config("cwe:catalog:url", CWE_CSV_URL)
+    global _ID_INDEX
+    _ID_INDEX = None  # invalidate stale index on catalog reload
     return rows
 
 
@@ -298,14 +319,24 @@ def get_cwe_version() -> dict:
     }
 
 
-def _find_by_id(cwe_id: int) -> dict | None:
-    for row in _load_data():
+def _build_index() -> dict[int, dict]:
+    global _ID_INDEX
+    if _ID_INDEX is not None:
+        return _ID_INDEX
+    rows = _load_data()
+    _ID_INDEX = {}
+    for row in rows:
         try:
-            if int(row.get("CWE-ID", 0)) == cwe_id:
-                return row
+            cid = int(row.get("CWE-ID", 0))
+            if cid:
+                _ID_INDEX[cid] = row
         except (ValueError, TypeError):
             continue
-    return None
+    return _ID_INDEX
+
+
+def _find_by_id(cwe_id: int) -> dict | None:
+    return _build_index().get(cwe_id)
 
 
 def _to_cwe_info(row: dict) -> CWEInfo:
@@ -622,3 +653,79 @@ def dump_all_cwes(abstraction: str | None = None, limit: int = 0) -> list[dict]:
             "introduction_phases": cwe.introduction_phases,
         })
     return results
+
+
+# --- MITRE Top 25 / KEV Top 10 / On the Cusp ---------------------------------
+#
+# Flow:
+# 1. CHECK CACHE (SQLite, TTL 7d) -> hit returns immediately
+# 2. FETCH HTML (stdlib urllib, 3 URLs, 1 call each)
+# 3. PARSE (regex, 1 pattern per table row -> ~50 entries total)
+# 4. ENRICH (cross-ref with local CWE catalog via _find_by_id)
+# 5. CACHE + RETURN merged JSON
+#
+# SSOT: this is the ONLY function that fetches MITRE curated lists.
+# The MCP tool cve_cwe_top25 in server.py just calls this.
+# ponytail: stdlib urllib - no requests/tavily dependency needed
+
+
+def _fetch_top25_page(year: int, suffix: str) -> str:
+    url = _TOP25_BASE.format(year=year, sfx=suffix)
+    try:
+        validate_url_https(url)
+    except ValueError:
+        return ""
+    try:
+        resp = urllib.request.urlopen(url, timeout=30)
+        return resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _parse_top25_rows(html: str) -> list[dict]:
+    results = []
+    for m in _ROW_RE.finditer(html):
+        rank, cwe_id, name, score, kev_count, rank_change = m.groups()
+        results.append({
+            "rank": int(rank),
+            "cwe_id": int(cwe_id),
+            "name": name.strip(),
+            "score": float(score),
+            "kev_count": int(kev_count),
+            "rank_change": rank_change.strip(),
+        })
+    return results
+
+
+def get_top25(year: int | None = None) -> dict:
+    """MITRE Top 25 / KEV Top 10 / On the Cusp curated weakness rankings.
+
+    Returns dict with keys: top25, kev_top10, on_the_cusp (each list[dict]).
+    Each entry: {rank, cwe_id, name, score, kev_count, rank_change, description}.
+    Cached 7d. SSOT for MITRE curated lists.
+    """
+    if year is None:
+        year = datetime.now(timezone.utc).year
+    cache_key = f"cwe:top25:{year}"
+    cached = get_json(cache_key)
+    if cached is not None:
+        return cached
+
+    result = {"year": year, "top25": [], "kev_top10": [], "on_the_cusp": []}
+    for list_name, suffix in zip(_TOP25_LISTS, _TOP25_SUFFIXES):
+        html = _fetch_top25_page(year, suffix)
+        entries = _parse_top25_rows(html)
+        for e in entries:
+            row = _find_by_id(e["cwe_id"])
+            if row:
+                e["description"] = row.get("Description", "")[:200]
+                e["abstraction"] = row.get(_COL_ABSTRACTION, "")
+            else:
+                e["description"] = ""
+                e["abstraction"] = ""
+        result[list_name] = entries
+
+    result["source"] = _TOP25_BASE.format(year=year, sfx="*")
+    result["fetched_at"] = datetime.now(timezone.utc).isoformat()
+    set_json(cache_key, result, _TOP25_TTL)
+    return result

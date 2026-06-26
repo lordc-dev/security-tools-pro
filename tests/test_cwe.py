@@ -460,3 +460,77 @@ class TestFormatCweBrief:
         out = format_cwe_brief(cwe)
         assert "..." in out
         assert len(out) < 300
+
+class TestParseTop25Rows:
+    """Test _parse_top25_rows with real HTML sample from MITRE 2025."""
+
+    _HTML_SAMPLE = """
+    <table id="Detail" border="2">
+    <thead><tr><th>Rank</th><th>ID</th><th>Name</th><th>Score</th><th>KEV</th><th>Change</th></tr></thead>
+    <tr>
+        <td style="text-align:center;"><b>1</b></td>
+        <td style="text-align:center;"><a href="/data/definitions/79.html">CWE-79</a></td>
+        <td>Improper Neutralization of Input During Web Page Generation</td>
+        <td style="text-align:center;">60.38</td>
+        <td style="text-align:center;">7</td>
+        <td style="text-align:center;">0</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;"><b>2</b></td>
+        <td style="text-align:center;"><a href="/data/definitions/89.html">CWE-89</a></td>
+        <td>Improper Neutralization of Special Elements used in an SQL Command</td>
+        <td style="text-align:center;">28.72</td>
+        <td style="text-align:center;">4</td>
+        <td style="text-align:center;">+1</td>
+    </tr>
+    <tr>
+        <td style="text-align:center;"><b>5</b></td>
+        <td style="text-align:center;"><a href="/data/definitions/787.html">CWE-787</a></td>
+        <td>Out-of-bounds Write</td>
+        <td style="text-align:center;">12.68</td>
+        <td style="text-align:center;">12</td>
+        <td style="text-align:center;">-3</td>
+    </tr>
+    </table>
+    """
+
+    def test_parses_three_rows(self):
+        from modules.cwe import _parse_top25_rows
+        results = _parse_top25_rows(self._HTML_SAMPLE)
+        assert len(results) == 3
+
+    def test_first_entry_fields(self):
+        from modules.cwe import _parse_top25_rows
+        results = _parse_top25_rows(self._HTML_SAMPLE)
+        first = results[0]
+        assert first["rank"] == 1
+        assert first["cwe_id"] == 79
+        assert "Web Page Generation" in first["name"]
+        assert first["score"] == 60.38
+        assert first["kev_count"] == 7
+        assert first["rank_change"] == "0"
+
+    def test_rank_change_variants(self):
+        from modules.cwe import _parse_top25_rows
+        results = _parse_top25_rows(self._HTML_SAMPLE)
+        assert results[1]["rank_change"] == "+1"
+        assert results[2]["rank_change"] == "-3"
+
+    def test_empty_html(self):
+        from modules.cwe import _parse_top25_rows
+        assert _parse_top25_rows("") == []
+        assert _parse_top25_rows("no tables here") == []
+
+
+class TestFindByIdIndex:
+    """Test that _find_by_id uses O(1) index, not linear scan."""
+
+    def test_find_by_id_returns_none_for_missing(self):
+        from modules.cwe import _find_by_id
+        assert _find_by_id(999999) is None
+
+    def test_build_index_returns_dict(self):
+        from modules.cwe import _build_index
+        idx = _build_index()
+        assert isinstance(idx, dict)
+        assert len(idx) > 0
