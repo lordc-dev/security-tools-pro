@@ -14,7 +14,7 @@ SEP = "\n---\n"
 
 mcp = FastMCP("security-tools-pro")
 
-from modules.cwe import get_cwe, search_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes, get_cwe_version as _get_cwe_version
+from modules.cwe import get_cwe, search_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes, get_cwe_version as _get_cwe_version, get_top25 as _get_top25
 from modules.cve import (
     nvd_get, nvd_search, nvd_recent, epss_score, kev_check, kev_recent,
     ghsa_get, ghsa_search, osv_query, osv_get, osv_batch, exploit_search,
@@ -33,7 +33,8 @@ from core.models import Severity
 from core.validation import (validate_url_https, safe_error, validate_cve_id,
     validate_cwe_id, validate_host, validate_ports, validate_scan_type,
     validate_nmap_script, validate_semgrep_config, resolve_semgrep_preset, validate_report_format,
-    validate_severity, validate_directory, validate_audit_output_format)
+    validate_severity, validate_directory, validate_audit_output_format,
+    validate_domain, validate_record_type)
 import json
 import re
 
@@ -623,18 +624,21 @@ def recon_port_scan(target: str, ports: str = "21,22,23,25,53,80,110,143,443,445
 @mcp.tool()
 def recon_dns_lookup(domain: str, record_type: str = "A") -> str:
     """DNS lookup for a domain. record_type: A, AAAA, MX, NS, TXT, CNAME, SOA, ANY."""
-    domain = domain.strip()
-    if not domain or len(domain) > 253:
-        return "Invalid domain name."
+    try:
+        domain = validate_domain(domain)
+        record_type = validate_record_type(record_type)
+    except ValueError as e:
+        return str(e)
     return dns_lookup(domain, record_type=record_type)
 
 
 @mcp.tool()
 def recon_dns_reverse(ip: str) -> str:
     """Reverse DNS lookup for an IP address."""
-    ip = ip.strip()
-    if not ip:
-        return "Invalid IP address."
+    try:
+        ip = validate_host(ip)
+    except ValueError as e:
+        return str(e)
     return dns_reverse(ip)
 
 
@@ -663,9 +667,10 @@ def recon_ssl_check(hostname: str, port: int = 443) -> str:
 @mcp.tool()
 def recon_whois(domain: str) -> str:
     """WHOIS lookup for a domain. Returns registration, registrar, nameservers, and dates."""
-    domain = domain.strip()
-    if not domain or len(domain) > 253:
-        return "Invalid domain name."
+    try:
+        domain = validate_domain(domain)
+    except ValueError as e:
+        return str(e)
     return whois_lookup(domain)
 
 
@@ -738,6 +743,11 @@ def sbom_grype(target: str, fail_on: str = "", extra_args: list[str] | None = No
         if fail_on_lower not in _GRYPE_FAIL_ON:
             return f"Invalid fail_on value. Must be one of: {', '.join(sorted(_GRYPE_FAIL_ON))}"
         fail_on = fail_on_lower
+    try:
+        if not target or len(target) > 500 or any(c in target for c in [';', '|', '&', '$', '`']):
+            return "Invalid grype target."
+    except Exception:
+        return "Invalid grype target."
     return grype_scan(target, fail_on=fail_on, extra_args=extra_args)
 
 
@@ -1048,6 +1058,32 @@ def cve_cwe_version() -> str:
     out += f"- **SHA-256:** `{data['sha256']}`\n"
     out += f"- **Fetched At:** {data['fetched_at']}\n"
     out += f"- **Cache TTL:** {int(data['cache_ttl_seconds'])}s ({int(data['cache_ttl_seconds'] // 3600)}h)\n"
+    return out
+
+
+@mcp.tool()
+def cve_cwe_top25(year: int | None = None) -> str:
+    """Get the most current MITRE curated weakness lists: Top 25 Most Dangerous Software Weaknesses, Top 10 KEV Weaknesses (actively exploited), and On the Cusp (near Top 25). Returns rank, score, KEV count, rank change, and CWE description for each entry. Defaults to current year; falls back silently if not yet published."""
+    data = _get_top25(year=year)
+    yr = data["year"]
+    out = f"## MITRE CWE Curated Lists ({yr})\n\n"
+    out += f"_Source: {data.get('source', '')} | Fetched: {data.get('fetched_at', '')[:19]}_\n\n"
+    for list_name, title, expected in [
+        ("top25", "Top 25 Most Dangerous", 25),
+        ("kev_top10", "Top 10 KEV Weaknesses", 10),
+        ("on_the_cusp", "On the Cusp", 15),
+    ]:
+        entries = data.get(list_name, [])
+        out += f"### {title} ({len(entries)}/{expected})\n\n"
+        if not entries:
+            out += "_No data available for this year yet._\n\n"
+            continue
+        out += "| Rank | CWE | Name | Score | KEV | Chg |\n"
+        out += "|------|-----|------|-------|-----|-----|\n"
+        for e in entries:
+            chg = e.get("rank_change", "N/A")
+            out += f"| {e['rank']} | CWE-{e['cwe_id']} | {e['name'][:60]} | {e['score']:.2f} | {e['kev_count']} | {chg} |\n"
+        out += "\n"
     return out
 
 

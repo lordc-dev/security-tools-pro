@@ -79,7 +79,7 @@ def trivy_scan(target: str, scan_type: str = "fs", severity: str = "", extra_arg
     for arg in (extra_args or []):
         if arg in _TRIVY_ALLOWED:
             cmd.append(arg)
-    cmd.append(target)
+    cmd += ["--", target]
     result = _run(cmd, timeout=300)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -104,7 +104,7 @@ _GRYPE_ALLOWED = {"--quiet", "--verbose", "--fail-on", "--by-cve"}
 def grype_scan(target: str, output_format: str = "json", fail_on: str = "", extra_args: list[str] | None = None) -> str:
     if not _is_available("grype"):
         return "Error: grype is not installed. Install with: `brew install grype`"
-    cmd = ["grype", target, "--output", output_format, "--exclude", "/node_modules/", "--exclude", "/dist/", "--exclude", "/build/", "--exclude", "/.git/", "--exclude", "/.venv/", "--exclude", "/venv/"]
+    cmd = ["grype", "--", target, "--output", output_format, "--exclude", "/node_modules/", "--exclude", "/dist/", "--exclude", "/build/", "--exclude", "/.git/", "--exclude", "/.venv/", "--exclude", "/venv/"]
     if fail_on:
         cmd += ["--fail-on", fail_on]
     for arg in (extra_args or []):
