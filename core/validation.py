@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 import shlex
+from urllib.parse import urlparse
 
 
 CVE_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
@@ -72,6 +74,14 @@ def validate_cwe_id(cwe_id: str | int) -> int:
     return val
 
 
+def _is_private_ip(host: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
+    except ValueError:
+        return False
+
+
 def validate_url_https(url: str) -> str:
     parsed_scheme = url.split("://")[0].lower() if "://" in url else ""
     if parsed_scheme not in ALLOWED_SCHEMES:
@@ -81,7 +91,32 @@ def validate_url_https(url: str) -> str:
     for scheme in blocked:
         if lower.startswith(scheme):
             raise ValueError(f"Blocked scheme: {scheme}")
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    if _is_private_ip(hostname):
+        raise ValueError(f"Blocked private/internal IP: {hostname}")
+    if hostname in ("localhost", "0.0.0.0", "::1"):
+        raise ValueError(f"Blocked internal hostname: {hostname}")
     return url
+
+
+DNS_RECORD_TYPES = {"A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "ANY", "PTR", "SRV", "CAA"}
+
+
+def validate_record_type(record_type: str) -> str:
+    rt = record_type.strip().upper()
+    if rt not in DNS_RECORD_TYPES:
+        raise ValueError(f"Invalid DNS record type: {record_type!r}. Must be one of: {', '.join(sorted(DNS_RECORD_TYPES))}")
+    return rt
+
+
+def validate_domain(domain: str) -> str:
+    d = domain.strip().lower()
+    if not d or len(d) > 253:
+        raise ValueError(f"Invalid domain name: {domain!r}")
+    if not re.match(r"^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$", d):
+        raise ValueError(f"Invalid domain name: {domain!r}")
+    return d
 
 
 def validate_host(target: str) -> str:
