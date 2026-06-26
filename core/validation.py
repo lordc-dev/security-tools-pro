@@ -3,12 +3,14 @@ from __future__ import annotations
 import ipaddress
 import re
 import shlex
+import socket
 from urllib.parse import urlparse
 
 
 CVE_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
 CWE_ID_PATTERN = re.compile(r"^\d+$")
 ALLOWED_SCHEMES = {"https", "http"}
+_BLOCKED_HOSTNAMES = {"localhost", "0.0.0.0", "::1"}
 HOST_PATTERN = re.compile(r"^[\w][\w.-]*[\w]$|[\w]$")
 _OCTET = r"(?:25[0-5]|2[0-4]\d|[01]?\d?\d)"
 IPV4_PATTERN = re.compile(
@@ -82,8 +84,10 @@ def _is_private_ip(host: str) -> bool:
         return False
 
 
-def validate_url_https(url: str) -> str:
+def validate_url_https(url: str, require_https: bool = False) -> str:
     parsed_scheme = url.split("://")[0].lower() if "://" in url else ""
+    if require_https and parsed_scheme != "https":
+        raise ValueError(f"Only HTTPS URLs are allowed. Blocked scheme: {parsed_scheme or 'none'}")
     if parsed_scheme not in ALLOWED_SCHEMES:
         raise ValueError(f"Only HTTPS/HTTP URLs are allowed. Blocked scheme: {parsed_scheme or 'none'}")
     blocked = ["file://", "data:", "javascript:", "vbscript:"]
@@ -95,8 +99,9 @@ def validate_url_https(url: str) -> str:
     hostname = parsed.hostname or ""
     if _is_private_ip(hostname):
         raise ValueError(f"Blocked private/internal IP: {hostname}")
-    if hostname in ("localhost", "0.0.0.0", "::1"):
+    if hostname in _BLOCKED_HOSTNAMES:
         raise ValueError(f"Blocked internal hostname: {hostname}")
+    _check_dns_resolution(hostname)
     return url
 
 
@@ -119,15 +124,38 @@ def validate_domain(domain: str) -> str:
     return d
 
 
-def validate_host(target: str) -> str:
+def _check_dns_resolution(hostname: str) -> None:
+    """Resolve hostname and reject if any resolved address is private/internal."""
+    if not hostname or _is_private_ip(hostname) or hostname in _BLOCKED_HOSTNAMES:
+        return
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return
+    for info in infos:
+        addr = info[4][0]
+        if _is_private_ip(addr):
+            raise ValueError(f"Hostname {hostname!r} resolves to private/internal IP: {addr}")
+
+
+def validate_host(target: str, _depth: int = 0) -> str:
     t = target.strip()
+    if len(t) > 253:
+        raise ValueError(f"Hostname too long: {target!r}")
     if IPV4_PATTERN.match(t) or IPV6_PATTERN.match(t):
+        if _is_private_ip(t):
+            raise ValueError(f"Blocked private/internal IP: {t}")
         return t
-    if (HOST_PATTERN.match(t) and "." in t) or t == "localhost":
+    if (HOST_PATTERN.match(t) and "." in t) or t in _BLOCKED_HOSTNAMES:
+        if t in _BLOCKED_HOSTNAMES:
+            raise ValueError(f"Blocked internal hostname: {t}")
+        _check_dns_resolution(t)
         return t
     bracketed = re.match(r"^\[(.+)\]$", t)
     if bracketed:
-        return validate_host(bracketed.group(1))
+        if _depth >= 5:
+            raise ValueError(f"Too many nested brackets: {target!r}")
+        return validate_host(bracketed.group(1), _depth=_depth + 1)
     raise ValueError(f"Invalid hostname or IP: {target!r}")
 
 
@@ -204,13 +232,14 @@ def validate_severity(severity: str | None) -> str | None:
 
 def validate_directory(directory: str) -> str:
     from pathlib import Path
-    p = Path(directory).resolve()
+    raw = Path(directory)
+    if raw.is_symlink():
+        raise ValueError(f"Symbolic links not allowed: {directory!r}")
+    p = raw.resolve()
     if not p.exists():
         raise ValueError(f"Directory does not exist: {directory!r}")
     if not p.is_dir():
         raise ValueError(f"Not a directory: {directory!r}")
-    if p.is_symlink():
-        raise ValueError(f"Symbolic links not allowed: {directory!r}")
     return str(p)
 
 

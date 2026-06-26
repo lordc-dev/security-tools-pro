@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from core.cache import get_json, set_json
 from modules.cve import osv_query, osv_batch
-from core.validation import safe_error
+from core.validation import safe_error, validate_url_https, _is_private_ip
+
+_MAX_SUBPROCESS_OUTPUT = 50 * 1024 * 1024  # 50 MB cap on captured stdout/stderr
 
 
 def _run(cmd: list[str], timeout: int = 120) -> dict:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return {"stdout": result.stdout, "stderr": safe_error(result.stderr[:500]) if result.stderr else "", "returncode": result.returncode}
+        stdout = result.stdout[:_MAX_SUBPROCESS_OUTPUT] if result.stdout else ""
+        stderr = result.stderr[:_MAX_SUBPROCESS_OUTPUT] if result.stderr else ""
+        return {"stdout": stdout, "stderr": safe_error(stderr[:500]) if stderr else "", "returncode": result.returncode}
     except FileNotFoundError:
         return {"error": f"Command not available: {cmd[0]}", "returncode": -1}
     except subprocess.TimeoutExpired:
@@ -70,9 +75,39 @@ _TRIVY_ALLOWED = {"--skip-db-update", "--skip-policy-update", "--no-progress", "
 _TRIVY_SKIP_DIRS = ",".join(["node_modules", "dist", "build", ".git", ".next", ".nuxt", "__pycache__", ".venv", "venv", ".pytest_cache", "coverage", ".turbo", ".cache"])
 
 
+def _validate_trivy_target(target: str, scan_type: str) -> str:
+    """Validate trivy target based on scan_type to prevent SSRF."""
+    from core.validation import validate_directory
+    if scan_type == "fs":
+        return validate_directory(target)
+    if scan_type == "repo":
+        from urllib.parse import urlparse
+        parsed = urlparse(target)
+        if parsed.scheme in ("http", "https"):
+            return validate_url_https(target)
+        # Local path
+        return validate_directory(target)
+    if scan_type == "image":
+        # Allow registry/repo:tag format. Check for private registries.
+        # Extract host part before first slash or colon-port
+        host_part = re.split(r"[/:]", target)[0]
+        if _is_private_ip(host_part):
+            raise ValueError(f"Blocked private registry IP: {host_part}")
+        if host_part in ("localhost", "0.0.0.0", "::1"):
+            raise ValueError(f"Blocked internal registry: {host_part}")
+        if not re.match(r"^[a-zA-Z0-9._/:@\-]+$", target):
+            raise ValueError(f"Invalid image reference: {target!r}")
+        return target
+    return target
+
+
 def trivy_scan(target: str, scan_type: str = "fs", severity: str = "", extra_args: list[str] | None = None) -> str:
     if not _is_available("trivy"):
         return "Error: trivy is not installed. Install with: `brew install trivy`"
+    try:
+        target = _validate_trivy_target(target, scan_type)
+    except ValueError as e:
+        return f"Error: {e}"
     cmd = ["trivy", scan_type, "--format", "json", "--quiet", "--skip-dirs", _TRIVY_SKIP_DIRS]
     if severity:
         cmd += ["--severity", severity]
@@ -104,6 +139,19 @@ _GRYPE_ALLOWED = {"--quiet", "--verbose", "--fail-on", "--by-cve"}
 def grype_scan(target: str, output_format: str = "json", fail_on: str = "", extra_args: list[str] | None = None) -> str:
     if not _is_available("grype"):
         return "Error: grype is not installed. Install with: `brew install grype`"
+    # Validate target: allow local paths or registry/repo:tag, block private IPs
+    from core.validation import validate_directory
+    from urllib.parse import urlparse
+    if re.match(r"^[a-zA-Z0-9._/:@\-]+$", target) and ("/" in target or ":" in target) and not target.startswith("/"):
+        # Looks like a container image reference
+        host_part = re.split(r"[/:]", target)[0]
+        if _is_private_ip(host_part) or host_part in ("localhost", "0.0.0.0", "::1"):
+            return f"Error: Blocked private/internal registry: {host_part}"
+    else:
+        try:
+            target = validate_directory(target)
+        except ValueError:
+            return f"Error: Invalid target (not a valid directory or image reference): {target!r}"
     cmd = ["grype", "--", target, "--output", output_format, "--exclude", "/node_modules/", "--exclude", "/dist/", "--exclude", "/build/", "--exclude", "/.git/", "--exclude", "/.venv/", "--exclude", "/venv/"]
     if fail_on:
         cmd += ["--fail-on", fail_on]

@@ -238,6 +238,17 @@ def _try_install(binary: str) -> tuple[bool, str]:
 
 
 def tool_health(fix: bool = False) -> dict:
+    import os
+    if fix and not os.environ.get("ALLOW_AUTO_INSTALL"):
+        return {
+            "error": "Auto-install disabled. Set ALLOW_AUTO_INSTALL=1 env var to enable fix=True.",
+            "available": {},
+            "missing": {},
+            "total": 0,
+            "available_count": 0,
+            "missing_count": 0,
+            "sonarqube": None,
+        }
     tools = [
         ("nmap", "recon_nmap_scan, recon_nmap_vuln, exploit_nmap_script"),
         ("dig", "recon_dns_lookup, recon_dns_reverse"),

@@ -16,7 +16,7 @@ EPSS_API = "https://api.first.org/data/v1/epss"
 KEV_API = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 GHSA_API = "https://api.github.com/advisories"
 OSV_API = "https://api.osv.dev/v1"
-_SAFE_OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler, urllib.request.HTTPHandler)
+_SAFE_OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler)
 
 _HEADERS = {"User-Agent": "security-tools-pro-mcp/1.0", "Accept": "application/json"}
 
@@ -29,16 +29,19 @@ if _NVD_API_KEY:
     set_rate_limit("nvd", 50, 30.0)
 
 
-def _http_get(url: str, headers: dict, timeout: float) -> dict | list | None:
-    """Single HTTP GET."""
+def _http_get(url: str, headers: dict, timeout: float, max_bytes: int = 10 * 1024 * 1024) -> dict | list | None:
+    """Single HTTP GET with response size cap."""
     req = urllib.request.Request(url, headers=headers)
     with _SAFE_OPENER.open(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+        raw = resp.read(max_bytes + 1)
+        if len(raw) > max_bytes:
+            raise ValueError(f"Response exceeds {max_bytes} bytes")
+        return json.loads(raw.decode("utf-8"))
 
 
 def _fetch(url: str, ttl: float = 3600.0, cache_key: str | None = None, bucket: str = "default", timeout: float = 30.0) -> dict | list | None:
     try:
-        url = validate_url_https(url)
+        url = validate_url_https(url, require_https=True)
     except ValueError:
         return None
     if cache_key is None:
@@ -67,9 +70,9 @@ def _fetch(url: str, ttl: float = 3600.0, cache_key: str | None = None, bucket: 
     return None
 
 
-def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "default") -> dict | list | None:
+def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "default", timeout: float = 45.0) -> dict | list | None:
     try:
-        url = validate_url_https(url)
+        url = validate_url_https(url, require_https=True)
     except ValueError:
         return None
     import hashlib
@@ -79,15 +82,23 @@ def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "defaul
         return cached
     if not rate_limit(bucket):
         return None
-    try:
-        data = json.dumps(body).encode()
-        req = urllib.request.Request(url, data=data, headers={**_HEADERS, "Content-Type": "application/json"})
-        with _SAFE_OPENER.open(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-        set_json(cache_key, result, ttl)
-        return result
-    except Exception:
-        return None
+    max_retries = _NVD_MAX_RETRIES if bucket == "nvd" else 1
+    for attempt in range(max_retries + 1):
+        try:
+            data = json.dumps(body).encode()
+            req = urllib.request.Request(url, data=data, headers={**_HEADERS, "Content-Type": "application/json"})
+            with _SAFE_OPENER.open(req, timeout=timeout) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            set_json(cache_key, result, ttl)
+            return result
+        except (socket.timeout, urllib.error.URLError, TimeoutError):
+            if attempt < max_retries:
+                time.sleep(_DEFAULT_RETRY_BACKOFF * (attempt + 1))
+                continue
+            return None
+        except Exception:
+            return None
+    return None
 
 
 def _parse_cvss(metrics: dict) -> tuple[float | None, Severity, str]:
@@ -189,18 +200,27 @@ def _extract_cpes(vuln: dict) -> list[str]:
 
 def epss_score(cve_ids: list[str]) -> dict[str, dict]:
     results = {}
+    to_fetch = []
     for cve_id in cve_ids:
         cached = get_json(f"epss:{cve_id}")
         if cached is not None:
             results[cve_id] = cached
-            continue
-        data = _fetch(f"{EPSS_API}?cve={cve_id}", ttl=21600.0, cache_key=f"epss:{cve_id}", bucket="epss")
-        if data and data.get("data"):
-            entry = data["data"][0]
-            info = {"epss": entry.get("epss", 0), "percentile": entry.get("percentile", 0)}
-            results[cve_id] = info
         else:
-            results[cve_id] = {"epss": 0, "percentile": 0}
+            to_fetch.append(cve_id)
+    for i in range(0, len(to_fetch), 200):
+        batch = to_fetch[i:i+200]
+        csv_ids = ",".join(batch)
+        cache_key = f"epss:batch:{urllib.parse.quote(csv_ids)[:80]}"
+        data = _fetch(f"{EPSS_API}?cve={csv_ids}", ttl=21600.0, cache_key=cache_key, bucket="epss")
+        if data and data.get("data"):
+            for entry in data["data"]:
+                cid = entry.get("cve", "")
+                info = {"epss": entry.get("epss", 0), "percentile": entry.get("percentile", 0)}
+                results[cid] = info
+                set_json(f"epss:{cid}", info, 21600.0)
+        else:
+            for cid in batch:
+                results[cid] = {"epss": 0, "percentile": 0}
     return results
 
 
@@ -242,6 +262,8 @@ def ghsa_get(cve_id: str) -> list[dict]:
 
 
 def ghsa_search(query: str, ecosystem: str | None = None, severity: str | None = None, limit: int = 50) -> list[dict]:
+    if limit <= 0 or limit > 100:
+        limit = 50
     all_results = []
     page = 1
     while True:
@@ -296,11 +318,13 @@ def _nvd_parse_inline(cve_data: dict) -> CVEInfo | None:
 
 
 def nvd_search(keyword: str, severity: str | None = None, limit: int = 20) -> list[CVEInfo]:
+    if limit <= 0 or limit > 500:
+        limit = 20
     words = keyword.strip().split()
     search_term = words[0] if words else keyword.strip()
     params = [f"keywordSearch={urllib.parse.quote(search_term)}"]
     if severity:
-        params.append(f"cvssV3Severity={severity}")
+        params.append(f"cvssV3Severity={urllib.parse.quote(severity, safe='')}")
     params.append(f"resultsPerPage={limit}")
     url = f"{NVD_API}?{'&'.join(params)}"
     data = _fetch(url, ttl=3600.0, cache_key=f"nvd_search:{url}", bucket="nvd", timeout=_NVD_HTTP_TIMEOUT)
@@ -322,12 +346,18 @@ def nvd_search(keyword: str, severity: str | None = None, limit: int = 20) -> li
 
 
 def nvd_recent(days: int = 7, severity: str | None = None, limit: int = 20) -> list[CVEInfo]:
+    if limit <= 0 or limit > 2000:
+        limit = 20
     from datetime import datetime, timedelta, timezone
     start = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00.000")
     end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000")
     params = [f"pubStartDate={urllib.parse.quote(start)}", f"pubEndDate={urllib.parse.quote(end)}"]
     if severity:
-        params.append(f"cvssV3Severity={severity}")
+        _VALID_SEVERITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+        sev = severity.strip().upper()
+        if sev not in _VALID_SEVERITIES:
+            return []
+        params.append(f"cvssV3Severity={sev}")
     params.append(f"resultsPerPage={limit}")
     url = f"{NVD_API}?{'&'.join(params)}"
     data = _fetch(url, ttl=1800.0, cache_key=f"nvd_recent:{url}", bucket="nvd", timeout=_NVD_HTTP_TIMEOUT)
@@ -455,6 +485,8 @@ def _cve_result_dict(cve: CVEInfo, weights: dict | None = None) -> dict:
 def prioritize_cves(cve_ids: list[str], weights: dict | None = None) -> list[dict]:
     if not cve_ids:
         return []
+    if len(cve_ids) > 50:
+        cve_ids = cve_ids[:50]
     epss_results = epss_score(cve_ids)
     kev_results = kev_check(cve_ids)
     results = []
@@ -463,7 +495,11 @@ def prioritize_cves(cve_ids: list[str], weights: dict | None = None) -> list[dic
         if cve is None:
             results.append({"id": cve_id, "error": "Not found in NVD", "risk_score": 0, "cvss_score": None, "severity": "INFO", "epss_score": 0, "epss_percentile": 0, "in_kev": False, "exploit_available": False, "exploit_count": 0, "cwe_ids": [], "affected_products": [], "references": [], "description": "", "risk_factors": ["Not found in NVD"]})
             continue
-        _enrich_cve(cve, epss_results, kev_results)
+        cve.epss_score = float(epss_results.get(cve_id, {}).get("epss", 0))
+        cve.epss_percentile = float(epss_results.get(cve_id, {}).get("percentile", 0))
+        cve.in_kev = kev_results.get(cve_id, False)
+        cve.exploit_status = ExploitStatus.NONE
+        cve.exploit_pocs = []
         results.append(_cve_result_dict(cve, weights=weights))
     results.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
     return results
@@ -531,6 +567,8 @@ def format_cve(cve: CVEInfo) -> str:
 
 
 def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int = 20, weights: dict | None = None) -> list[dict]:
+    if limit <= 0 or limit > 100:
+        limit = 20
     cves = nvd_recent(days=days, severity=severity, limit=limit)
     if not cves:
         return []
@@ -539,7 +577,9 @@ def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int 
     kev_results = kev_check(cve_ids)
     results = []
     for cve in cves:
-        _enrich_cve(cve, epss_results, kev_results)
+        cve.epss_score = float(epss_results.get(cve.id, {"epss": 0}).get("epss", 0))
+        cve.epss_percentile = float(epss_results.get(cve.id, {"percentile": 0}).get("percentile", 0))
+        cve.in_kev = kev_results.get(cve.id, False)
         score = compute_risk_score(cve, weights=weights)
         factors = compute_risk_factors(cve)
         results.append({
@@ -552,20 +592,20 @@ def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int 
             "epss_percentile": cve.epss_percentile,
             "in_kev": cve.in_kev,
             "cwe_ids": cve.cwe_ids,
-            "exploit_status": cve.exploit_status.value,
-            "exploit_pocs": cve.exploit_pocs,
+            "exploit_status": ExploitStatus.NONE.value,
+            "exploit_pocs": [],
             "affected_products": cve.affected_products,
             "references": cve.references,
             "published": cve.published,
             "modified": cve.modified,
             "risk_score": round(score, 1),
             "risk_factors": factors,
-            "ghsa_id": cve.ghsa_id,
-            "ghsa_severity": cve.ghsa_severity,
-            "ghsa_summary": cve.ghsa_summary,
-            "ghsa_url": cve.ghsa_url,
-            "ghsa_packages": cve.ghsa_packages,
-            "ghsa_patches": cve.ghsa_patches,
+            "ghsa_id": "",
+            "ghsa_severity": "",
+            "ghsa_summary": "",
+            "ghsa_url": "",
+            "ghsa_packages": [],
+            "ghsa_patches": [],
         })
     results.sort(key=lambda x: x.get("risk_score", 0), reverse=True)
     return results

@@ -12,11 +12,15 @@ from pathlib import Path
 from core.cache import get_json, set_json
 from core.validation import safe_error
 
+_MAX_SUBPROCESS_OUTPUT = 50 * 1024 * 1024  # 50 MB cap on captured stdout/stderr
+
 
 def _run(cmd: list[str], timeout: int = 30) -> dict:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return {"stdout": result.stdout, "stderr": safe_error(result.stderr[:500]) if result.stderr else "", "returncode": result.returncode}
+        stdout = result.stdout[:_MAX_SUBPROCESS_OUTPUT] if result.stdout else ""
+        stderr = result.stderr[:_MAX_SUBPROCESS_OUTPUT] if result.stderr else ""
+        return {"stdout": stdout, "stderr": safe_error(stderr[:500]) if stderr else "", "returncode": result.returncode}
     except FileNotFoundError:
         return {"error": f"Command not available: {cmd[0]}", "returncode": -1}
     except subprocess.TimeoutExpired:
@@ -96,20 +100,33 @@ def dns_reverse(ip: str) -> str:
 
 def http_headers(url: str, _method: str = "HEAD") -> str:
     """Fetch HTTP headers for a URL. Checks security headers (HSTS, CSP, X-Frame-Options, etc.)."""
-    cmd = ["curl", "-sI", "-L", "--max-time", "15", url]
+    from core.validation import validate_url_https, validate_host
+    try:
+        validate_url_https(url, require_https=True)
+    except ValueError as e:
+        return f"URL blocked by security policy: {e}"
+    cmd = ["curl", "-sI", "--max-time", "15", url]
     result = _run(cmd, timeout=20)
     headers_raw = ""
     if result.get("error") or (result["returncode"] != 0 and not result["stdout"]):
-        # Fallback: Python urllib (handles TLS fingerprint issues with some CDNs)
+        # Fallback: Python urllib with redirect re-validation
+        class _RedirectValidator(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                try:
+                    validate_url_https(newurl, require_https=True)
+                except ValueError:
+                    raise urllib.error.URLError(f"Redirect blocked: {newurl}")
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
+        safe_opener = urllib.request.build_opener(_RedirectValidator)
         try:
             req = urllib.request.Request(url, method="HEAD")
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with safe_opener.open(req, timeout=15) as resp:
                 headers_raw = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
         except Exception:
             # Last resort: GET with range header (some servers reject HEAD)
             try:
                 req = urllib.request.Request(url, headers={"Range": "bytes=0-0"})
-                with urllib.request.urlopen(req, timeout=15) as resp:
+                with safe_opener.open(req, timeout=15) as resp:
                     headers_raw = "\n".join(f"{k}: {v}" for k, v in resp.headers.items())
             except Exception as e:
                 err = result.get("error") or result.get("stderr", "")[:500] or str(e)

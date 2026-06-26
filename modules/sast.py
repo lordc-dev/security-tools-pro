@@ -21,32 +21,34 @@ def _sonar_require() -> tuple[str, str]:
     return url, token
 
 
-def _fetch(url: str, token: str = "", timeout: int = 30) -> dict | list | None:
+def _fetch(url: str, token: str = "", timeout: int = 45) -> dict | list | None:
     try:
-        validate_url_https(url)
+        validate_url_https(url, require_https=True)
     except ValueError:
         raise RuntimeError(f"SonarQube URL blocked by security policy: {url[:50]}")
-    safe_opener = urllib.request.build_opener(
-        urllib.request.HTTPSHandler,
-        urllib.request.HTTPHandler,
-    )
+    safe_opener = urllib.request.build_opener(urllib.request.HTTPSHandler)
     req = urllib.request.Request(url)
     if token:
         cred = base64.b64encode(f"{token}:".encode()).decode()
         req.add_header("Authorization", f"Basic {cred}")
     req.add_header("Accept", "application/json")
-    try:
-        with safe_opener.open(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            raise RuntimeError("SonarQube authentication failed. Check SONARQUBE_TOKEN.")
-        if e.code == 404:
-            return None
-        body = e.read().decode("utf-8", errors="replace")[:500]
-        raise RuntimeError(f"SonarQube HTTP {e.code}: {safe_error(body)}")
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"SonarQube connection error: {safe_error(str(e)[:200])}")
+    for attempt in range(2):
+        try:
+            with safe_opener.open(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise RuntimeError("SonarQube authentication failed. Check SONARQUBE_TOKEN.")
+            if e.code == 404:
+                return None
+            body = e.read().decode("utf-8", errors="replace")[:500]
+            raise RuntimeError(f"SonarQube HTTP {e.code}: {safe_error(body)}")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if attempt == 0:
+                import time
+                time.sleep(1)
+                continue
+            raise RuntimeError(f"SonarQube connection error: {safe_error(str(e)[:200])}")
 
 
 def _fetch_paginated(url: str, token: str, params: dict, page_size: int = 500, max_pages: int = 10) -> list[dict]:

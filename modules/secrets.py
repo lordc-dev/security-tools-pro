@@ -8,11 +8,15 @@ from pathlib import Path
 from core.cache import get_json, set_json
 from core.validation import safe_error
 
+_MAX_SUBPROCESS_OUTPUT = 50 * 1024 * 1024  # 50 MB cap on captured stdout/stderr
+
 
 def _run(cmd: list[str], timeout: int = 60) -> dict:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        return {"stdout": result.stdout, "stderr": safe_error(result.stderr[:500]) if result.stderr else "", "returncode": result.returncode}
+        stdout = result.stdout[:_MAX_SUBPROCESS_OUTPUT] if result.stdout else ""
+        stderr = result.stderr[:_MAX_SUBPROCESS_OUTPUT] if result.stderr else ""
+        return {"stdout": stdout, "stderr": safe_error(stderr[:500]) if stderr else "", "returncode": result.returncode}
     except FileNotFoundError:
         return {"error": f"Command not available: {cmd[0]}", "returncode": -1}
     except subprocess.TimeoutExpired:
@@ -116,7 +120,7 @@ _GITLEAKS_ALLOWED = {"--no-banner", "--redact", "--verbose"}
 def gitleaks_scan(directory: str, report_format: str = "sarif", extra_args: list[str] | None = None) -> str:
     if not _is_available("gitleaks"):
         return "Error: gitleaks is not installed. Install with: `brew install gitleaks`"
-    import tempfile
+    import tempfile, os
     with tempfile.NamedTemporaryFile(suffix=f".{report_format}", delete=False, mode="w") as tmp:
         report_path = tmp.name
     cmd = ["gitleaks", "detect", "--source", directory, "--no-git", "--report-format", report_format, "--report-path", report_path, "--no-banner"]
@@ -130,8 +134,11 @@ def gitleaks_scan(directory: str, report_format: str = "sarif", extra_args: list
             report_content = f.read()
     except Exception:
         pass
-    import os
-    os.unlink(report_path)
+    finally:
+        try:
+            os.unlink(report_path)
+        except OSError:
+            pass
     if result.get("error"):
         return f"Error: {result['error']}"
     leaks_found = result["returncode"] == 1

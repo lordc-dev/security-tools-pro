@@ -15,7 +15,7 @@ from core.models import CWEInfo
 from core.validation import validate_url_https
 
 CWE_CSV_URL = "https://cwe.mitre.org/data/csv/1000.csv.zip"
-CWE_CSV_SHA256 = os.environ.get("CWE_CSV_SHA256", "")
+CWE_CSV_SHA256 = os.environ.get("CWE_CSV_SHA256", "")  # ponytail: pin this to a known-good hash for reproducibility
 TTL = 86400.0
 _COL_ABSTRACTION = "Weakness Abstraction"
 
@@ -287,11 +287,13 @@ def _load_data() -> list[dict]:
         return cached
 
     try:
-        validate_url_https(CWE_CSV_URL)
+        validate_url_https(CWE_CSV_URL, require_https=True)
     except ValueError:
         return []
     resp = urllib.request.urlopen(CWE_CSV_URL, timeout=60)
-    raw = resp.read()
+    raw = resp.read(50 * 1024 * 1024 + 1)  # cap at 50 MB
+    if len(raw) > 50 * 1024 * 1024:
+        raise ValueError("CWE CSV exceeds 50 MB")
     content_hash = hashlib.sha256(raw).hexdigest()
     if CWE_CSV_SHA256 and content_hash != CWE_CSV_SHA256:
         raise ValueError(f"CWE CSV integrity check failed. Expected {CWE_CSV_SHA256[:16]}... got {content_hash[:16]}...")
@@ -375,6 +377,8 @@ def get_cwe(cwe_id: int) -> CWEInfo | None:
 
 
 def search_cwes(term: str, limit: int = 20) -> list[CWEInfo]:
+    if limit <= 0 or limit > 100:
+        limit = 20
     data = _load_data()
     term_lower = term.lower()
     results = []
@@ -387,6 +391,8 @@ def search_cwes(term: str, limit: int = 20) -> list[CWEInfo]:
 
 
 def list_cwes_by_abstraction(abstraction: str, limit: int = 50) -> list[CWEInfo]:
+    if limit <= 0 or limit > 200:
+        limit = 50
     data = _load_data()
     results = []
     for row in data:
@@ -619,6 +625,8 @@ def format_cwe_brief(cwe: CWEInfo) -> str:
 
 
 def dump_all_cwes(abstraction: str | None = None, limit: int = 0) -> list[dict]:
+    if limit < 0 or limit > 200:
+        limit = 200
     rows = _load_data()
     if abstraction:
         rows = [r for r in rows if r.get(_COL_ABSTRACTION, "") == abstraction]
@@ -672,7 +680,7 @@ def dump_all_cwes(abstraction: str | None = None, limit: int = 0) -> list[dict]:
 def _fetch_top25_page(year: int, suffix: str) -> str:
     url = _TOP25_BASE.format(year=year, sfx=suffix)
     try:
-        validate_url_https(url)
+        validate_url_https(url, require_https=True)
     except ValueError:
         return ""
     try:

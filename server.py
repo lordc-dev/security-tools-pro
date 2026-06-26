@@ -112,6 +112,8 @@ def cve_kev_check(cve: str) -> str:
 @mcp.tool()
 def cve_kev_recent(days: int = 30, limit: int = 20) -> str:
     """Get recently added entries to CISA KEV catalog. Monitor for newly confirmed actively-exploited vulnerabilities."""
+    if limit <= 0 or limit > 500:
+        limit = 20
     results = kev_recent(days=days)
     if not results:
         return "No recent KEV entries."
@@ -358,6 +360,8 @@ def _format_dump_enriched_detail(r: dict) -> str:
 @mcp.tool()
 def cve_dump_recent(days: int = 7, severity: str | None = None, limit: int = 20, weights: dict | None = None) -> str:
     """Dump recently published CVEs with FULL enrichment (NVD+EPSS+KEV+GHSA+exploits+risk score) in a single call. The AI then decides what's important. Much more efficient than calling individual tools separately. Optional `weights` dict overrides risk scoring defaults."""
+    if limit <= 0 or limit > 100:
+        limit = 20
     try:
         if severity:
             severity = validate_severity(severity)
@@ -393,6 +397,8 @@ def cve_cwe_by_id(cwe_id: Annotated[int, Field(validation_alias="cweId", seriali
 @mcp.tool()
 def cve_cwe_search(term: str, limit: int = 20) -> str:
     """Search the CWE catalog by keyword (e.g. 'SQL', 'XSS', 'injection'). Returns matching CWEs with ID, name, and full description."""
+    if limit <= 0 or limit > 100:
+        limit = 20
     results = search_cwes(term, limit=limit)
     if not results:
         return f"No CWEs found matching '{term}'."
@@ -405,6 +411,8 @@ def cve_cwe_search(term: str, limit: int = 20) -> str:
 @mcp.tool()
 def cve_cwe_list(category: str = "", limit: int = 25) -> str:
     """List CWEs from the catalog, optionally filtered by keyword. Defaults to the first 25 entries."""
+    if limit <= 0 or limit > 200:
+        limit = 25
     from modules.cwe import _load_data
     data = _load_data()
     if category:
@@ -492,6 +500,8 @@ def cve_cwe_consequences(cwe_id: Annotated[int, Field(validation_alias="cweId", 
 @mcp.tool()
 def cve_cwe_by_abstraction(abstraction: str, limit: int = 15) -> str:
     """Filter CWEs by abstraction type: Pillar, Class, Base, Variant, Compound. Pillar = most generic, Variant = most specific."""
+    if limit <= 0 or limit > 100:
+        limit = 15
     valid = {"Pillar", "Class", "Base", "Variant", "Compound"}
     term = abstraction.capitalize()
     if term not in valid:
@@ -531,6 +541,8 @@ def _format_cwe_dump_entry(cwe: dict) -> str:
 @mcp.tool()
 def cve_cwe_dump_all(abstraction: str | None = None, limit: int = 0) -> str:
     """Dump the ENTIRE CWE catalog (or filter by abstraction) as structured data in one call. Returns all fields: id, name, description, consequences, mitigations, related weaknesses, etc. The AI then decides what's important. Set limit=0 for no limit."""
+    if limit < 0 or limit > 200:
+        limit = 200
     results = dump_all_cwes(abstraction=abstraction, limit=limit)
     if not results:
         if abstraction:
@@ -547,6 +559,8 @@ def cve_cwe_dump_all(abstraction: str | None = None, limit: int = 0) -> str:
 @mcp.tool()
 def cve_trending(min_epss: Annotated[float, Field(default=0.3, validation_alias="minEpss", serialization_alias="minEpss")] = 0.3, limit: int = 30) -> str:
     """Get currently trending/hot CVEs — vulnerabilities with the highest exploitation probability right now. Combines EPSS scores with NVD details and KEV status."""
+    if limit <= 0 or limit > 100:
+        limit = 30
     from modules.cve import _fetch
     url = f"https://api.first.org/data/v1/epss?order=epss&limit={limit}"
     data = _fetch(url, ttl=1800.0, cache_key="epss:trending", bucket="epss")
@@ -813,6 +827,7 @@ def exploit_nuclei(target: str, templates: str = "", severity: str = "", extra_a
 
 @mcp.tool()
 def report_markdown(findings: list[dict], title: str = "Security Assessment Report") -> str:
+    findings = findings[:1000]  # cap at 1000 findings
     """Generate a markdown vulnerability report from findings. Each finding dict: {title, severity, description, cve_ids, cwe_ids, affected_component, remediation, references}."""
     return generate_markdown_report(findings, title=title)
 
@@ -825,6 +840,7 @@ def report_jira(finding: dict) -> str:
 
 @mcp.tool()
 def report_summary(findings: list[dict]) -> str:
+    findings = findings[:1000]  # cap at 1000 findings
     """Generate a compact CLI-friendly summary of security findings. Good for quick overview."""
     return generate_cli_summary(findings)
 
@@ -1020,6 +1036,7 @@ def audit_repo(directory: str, sast_config: str = "owasp", include_deps: bool = 
 
 @mcp.tool()
 def report_sarif(findings: list[dict], title: str = "Security Assessment Report") -> str:
+    findings = findings[:1000]  # cap at 1000 findings
     """Generate a SARIF 2.1.0 report from findings. SARIF is the industry standard format for security results — can be uploaded to GitHub Security tab, VSCode, Azure DevOps, or any SARIF-compatible tool. Each finding dict: {title, severity, description, cve_ids, cwe_ids, affected_component, remediation, references}."""
     return generate_sarif_report(findings, title=title)
 
