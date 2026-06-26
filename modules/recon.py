@@ -48,7 +48,7 @@ def nmap_scan(target: str, ports: str = "", scan_type: str = "service", extra_ar
     if ports:
         cmd += ["-p", ports]
     cmd += _safe_extra_args(extra_args, _NMAP_EXTRA_ALLOWED)
-    cmd.append(target)
+    cmd += ["--", target]
     result = _run(cmd, timeout=120)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -65,7 +65,7 @@ def nmap_vuln_scan(target: str, ports: str = "") -> str:
     else:
         # Default: top 20 ports only (vuln scripts are slow; 100 ports can exceed MCP timeout)
         cmd += ["--top-ports", "20"]
-    cmd.append(target)
+    cmd += ["--", target]
     result = _run(cmd, timeout=300)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -74,7 +74,7 @@ def nmap_vuln_scan(target: str, ports: str = "") -> str:
 
 def dns_lookup(domain: str, record_type: str = "A") -> str:
     """DNS lookup using dig. record_type: A, AAAA, MX, NS, TXT, CNAME, SOA, ANY."""
-    cmd = ["dig", "+short", domain, record_type]
+    cmd = ["dig", "+short", domain, record_type, "--"]
     result = _run(cmd, timeout=10)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -85,7 +85,7 @@ def dns_lookup(domain: str, record_type: str = "A") -> str:
 
 def dns_reverse(ip: str) -> str:
     """Reverse DNS lookup for an IP address."""
-    cmd = ["dig", "+short", "-x", ip]
+    cmd = ["dig", "+short", "-x", ip, "--"]
     result = _run(cmd, timeout=10)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -268,7 +268,7 @@ def _parse_whois(raw: str) -> dict[str, str]:
 
 def whois_lookup(domain: str) -> str:
     """WHOIS lookup for a domain. Returns registration, registrar, nameservers, and dates."""
-    cmd = ["whois", domain]
+    cmd = ["whois", "--", domain]
     result = _run(cmd, timeout=15)
     if result.get("error"):
         return f"Error: {result['error']}"
@@ -293,7 +293,7 @@ def ping_check(host: str, count: int = 3) -> str:
 
 def port_scan_quick(target: str, ports: str = "21,22,23,25,53,80,110,143,443,445,993,995,3306,3389,5432,6379,8080,8443,9090") -> str:
     """Quick TCP port scan for common service ports using nmap."""
-    cmd = ["nmap", "-Pn", "-sT", "-p", ports, "-T5", "--open", target]
+    cmd = ["nmap", "-Pn", "-sT", "-p", ports, "-T5", "--open", "--", target]
     result = _run(cmd, timeout=30)
     if result.get("error"):
         return f"Error: {result['error']}"
