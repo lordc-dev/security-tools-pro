@@ -7,7 +7,7 @@ import urllib.error
 import urllib.parse
 from core.cache import get_json, set_json, rate_limit
 from core.config import get_sonarqube_credentials, is_sonarqube_available, SONARQUBE_UNAVAILABLE_MSG
-from core.validation import safe_error, validate_url_https
+from core.validation import safe_error
 
 
 def sonar_available() -> bool:
@@ -22,11 +22,8 @@ def _sonar_require() -> tuple[str, str]:
 
 
 def _fetch(url: str, token: str = "", timeout: int = 45) -> dict | list | None:
-    try:
-        validate_url_https(url, require_https=True)
-    except ValueError:
-        raise RuntimeError(f"SonarQube URL blocked by security policy: {url[:50]}")
-    safe_opener = urllib.request.build_opener(urllib.request.HTTPSHandler)
+    # ponytail: SonarQube URL is user-config, not external input — skip SSRF validator to allow HTTP/localhost
+    safe_opener = urllib.request.build_opener()
     req = urllib.request.Request(url)
     if token:
         cred = base64.b64encode(f"{token}:".encode()).decode()
