@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from core.models import CVEInfo, CWEInfo, VulnerabilityReport, compute_risk_score, compute_risk_factors, ExploitStatus
 from modules.cve import nvd_get, epss_score, kev_check, exploit_search, ghsa_get
 from modules.cwe import get_cwe, format_cwe
@@ -47,20 +49,27 @@ def enrich_cve(cve_id: str, weights: dict | None = None) -> VulnerabilityReport 
     if cve is None:
         return None
 
-    epss_results = epss_score([cve_id])
+    # EPSS/KEV/exploits/GHSA are independent — fetch in parallel (cache+rate-limit locks are thread-safe)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        epss_fut = pool.submit(epss_score, [cve_id])
+        kev_fut = pool.submit(kev_check, [cve_id])
+        exploits_fut = pool.submit(exploit_search, cve_id)
+        ghsa_fut = pool.submit(ghsa_get, cve_id)
+        epss_results = epss_fut.result()
+        kev_results = kev_fut.result()
+        exploits = exploits_fut.result()
+        ghsa_advisories = ghsa_fut.result()
+
     epss = epss_results.get(cve_id, {"epss": 0, "percentile": 0})
     cve.epss_score = float(epss.get("epss", 0))
     cve.epss_percentile = float(epss.get("percentile", 0))
 
-    kev_results = kev_check([cve_id])
     cve.in_kev = kev_results.get(cve_id, False)
 
-    exploits = exploit_search(cve_id)
     if exploits:
         cve.exploit_status = ExploitStatus.POC_PUBLIC
     cve.exploit_pocs = [e["url"] for e in exploits if e.get("url")]
 
-    ghsa_advisories = ghsa_get(cve_id)
     if ghsa_advisories and isinstance(ghsa_advisories, list) and len(ghsa_advisories) > 0:
         _parse_ghsa_advisory(cve, ghsa_advisories[0])
 
