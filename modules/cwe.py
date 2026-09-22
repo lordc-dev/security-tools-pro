@@ -586,6 +586,13 @@ def _format_notes(cwe: CWEInfo) -> str:
     return f"\n**Notes:** {cwe.notes}\n"
 
 
+def list_cwes(limit: int = 25) -> list[CWEInfo]:
+    """First N CWEs from the catalog (no filter)."""
+    if limit <= 0 or limit > 200:
+        limit = 25
+    return [_to_cwe_info(row) for row in _load_data()[:limit]]
+
+
 def format_cwe(cwe: CWEInfo) -> str:
     out = f"## CWE-{cwe.id}: {cwe.name}\n"
     out += f"**Abstraction:** {cwe.abstraction} | **Status:** {cwe.status}\n\n"

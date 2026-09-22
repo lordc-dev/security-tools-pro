@@ -14,14 +14,13 @@ SEP = "\n---\n"
 
 mcp = FastMCP("security-tools-pro")
 
-from modules.cwe import get_cwe, search_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes, get_cwe_version as _get_cwe_version, get_top25 as _get_top25
+from modules.cwe import get_cwe, search_cwes, list_cwes, list_cwes_by_abstraction, format_cwe, dump_all_cwes, get_cwe_version as _get_cwe_version, get_top25 as _get_top25
 from modules.cve import (
     nvd_get, nvd_search, nvd_recent, epss_score, kev_check, kev_recent,
     ghsa_get, ghsa_search, osv_query, osv_get, osv_batch, exploit_search,
-    prioritize_cves, format_cve, dump_enriched_recent,
+    prioritize_cves, format_cve, dump_enriched_recent, get_trending,
 )
 from modules.crossref import enrich_cve, format_report
-from modules.exploit import searchsploit, nmap_script_scan, nikto_scan, nuclei_scan
 from modules.report import generate_markdown_report, generate_jira_ticket, generate_cli_summary, generate_sarif_report
 from modules.sast import (
     sonar_projects, sonar_issues, sonar_hotspots, sonar_quality_gate,
@@ -81,10 +80,10 @@ def cve_nvd_recent(days: int = 7, severity: str | None = None, limit: int = 20) 
 @mcp.tool()
 def cve_epss_score(cve: str) -> str:
     """Get EPSS (Exploit Prediction Scoring System) score for one or more CVEs. Returns the probability of exploitation within 30 days and percentile ranking."""
-    cve_ids = [validate_cve_id(c.strip()) for c in cve.split(",")]
-    bad = [c for c in cve_ids if isinstance(c, str) and c.startswith("Invalid")]
-    if bad:
-        return "\n".join(bad)
+    try:
+        cve_ids = [validate_cve_id(c.strip()) for c in cve.split(",")]
+    except ValueError as e:
+        return str(e)
     results = epss_score(cve_ids)
     out = ""
     for cid, info in results.items():
@@ -413,18 +412,15 @@ def cve_cwe_list(category: str = "", limit: int = 25) -> str:
     """List CWEs from the catalog, optionally filtered by keyword. Defaults to the first 25 entries."""
     if limit <= 0 or limit > 200:
         limit = 25
-    from modules.cwe import _load_data
-    data = _load_data()
     if category:
         results = search_cwes(category, limit=limit)
         out = f"CWEs filtered by '{category}' ({len(results)}):\n\n"
         for cwe in results:
             out += format_cwe(cwe) + SEP
     else:
-        from modules.cwe import _to_cwe_info
-        out = f"CWEs ({min(limit, len(data))}):\n\n"
-        for row in data[:limit]:
-            cwe = _to_cwe_info(row)
+        results = list_cwes(limit=limit)
+        out = f"CWEs ({len(results)}):\n\n"
+        for cwe in results:
             out += format_cwe(cwe) + SEP
     return out
 
@@ -561,16 +557,9 @@ def cve_trending(min_epss: Annotated[float, Field(default=0.3, validation_alias=
     """Get currently trending/hot CVEs — vulnerabilities with the highest exploitation probability right now. Combines EPSS scores with NVD details and KEV status."""
     if limit <= 0 or limit > 100:
         limit = 30
-    from modules.cve import _fetch
-    url = f"https://api.first.org/data/v1/epss?order=epss&limit={limit}"
-    data = _fetch(url, ttl=1800.0, cache_key="epss:trending", bucket="epss")
-    if data is None:
+    filtered = get_trending(min_epss=min_epss, limit=limit)
+    if filtered is None:
         return "Failed to fetch EPSS trending data. The EPSS API may be temporarily unavailable."
-    entries = data.get("data", [])
-    if not entries:
-        return "No trending data available."
-
-    filtered = [e for e in entries if float(e.get("epss", 0)) >= min_epss]
     if not filtered:
         return f"No CVEs with EPSS >= {min_epss:.0%}."
 
@@ -595,7 +584,6 @@ from modules.recon import (
 from modules.secrets import trufflehog_scan, gitleaks_scan, semgrep_scan
 from modules.sbom import trivy_scan, grype_scan, osv_scan_package, osv_scan_batch
 from modules.exploit import searchsploit, nmap_script_scan, nikto_scan, nuclei_scan
-from modules.report import generate_markdown_report, generate_jira_ticket, generate_cli_summary
 
 
 @mcp.tool()
@@ -757,11 +745,6 @@ def sbom_grype(target: str, fail_on: str = "", extra_args: list[str] | None = No
         if fail_on_lower not in _GRYPE_FAIL_ON:
             return f"Invalid fail_on value. Must be one of: {', '.join(sorted(_GRYPE_FAIL_ON))}"
         fail_on = fail_on_lower
-    try:
-        if not target or len(target) > 500 or any(c in target for c in [';', '|', '&', '$', '`']):
-            return "Invalid grype target."
-    except Exception:
-        return "Invalid grype target."
     return grype_scan(target, fail_on=fail_on, extra_args=extra_args)
 
 
@@ -827,8 +810,8 @@ def exploit_nuclei(target: str, templates: str = "", severity: str = "", extra_a
 
 @mcp.tool()
 def report_markdown(findings: list[dict], title: str = "Security Assessment Report") -> str:
-    findings = findings[:1000]  # cap at 1000 findings
     """Generate a markdown vulnerability report from findings. Each finding dict: {title, severity, description, cve_ids, cwe_ids, affected_component, remediation, references}."""
+    findings = findings[:1000]  # cap at 1000 findings
     return generate_markdown_report(findings, title=title)
 
 
@@ -840,8 +823,8 @@ def report_jira(finding: dict) -> str:
 
 @mcp.tool()
 def report_summary(findings: list[dict]) -> str:
-    findings = findings[:1000]  # cap at 1000 findings
     """Generate a compact CLI-friendly summary of security findings. Good for quick overview."""
+    findings = findings[:1000]  # cap at 1000 findings
     return generate_cli_summary(findings)
 
 
@@ -1036,8 +1019,8 @@ def audit_repo(directory: str, sast_config: str = "owasp", include_deps: bool = 
 
 @mcp.tool()
 def report_sarif(findings: list[dict], title: str = "Security Assessment Report") -> str:
-    findings = findings[:1000]  # cap at 1000 findings
     """Generate a SARIF 2.1.0 report from findings. SARIF is the industry standard format for security results — can be uploaded to GitHub Security tab, VSCode, Azure DevOps, or any SARIF-compatible tool. Each finding dict: {title, severity, description, cve_ids, cwe_ids, affected_component, remediation, references}."""
+    findings = findings[:1000]  # cap at 1000 findings
     return generate_sarif_report(findings, title=title)
 
 
@@ -1063,6 +1046,20 @@ def tool_health(fix: bool = False) -> str:
             out += f"| {tool} | {info['used_by']} | `{info['install']}` | {status} |\n"
     if not data['available'] and not data['missing']:
         out += "No tools checked.\n"
+    return out
+
+
+@mcp.tool()
+def cache_stats() -> str:
+    """Get cache statistics: hits, misses, expired entries, writes, and hit rate. Useful to verify whether API responses are being served from cache (fast) or refetched (slow)."""
+    from core.cache import get_stats
+    s = get_stats()
+    out = "## Cache Statistics\n\n"
+    out += f"- **Hits:** {s['hits']}\n"
+    out += f"- **Misses:** {s['misses']}\n"
+    out += f"- **Expired (evicted on read):** {s['expired']}\n"
+    out += f"- **Writes:** {s['writes']}\n"
+    out += f"- **Hit rate:** {s['hit_rate']:.1%}\n"
     return out
 
 
