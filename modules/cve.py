@@ -7,16 +7,17 @@ import time
 import urllib.request
 import urllib.parse
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from core.cache import get_json, set_json, rate_limit, set_rate_limit
 from core.models import CVEInfo, Severity, ExploitStatus, compute_risk_score, compute_risk_factors
-from core.validation import validate_url_https, safe_error
+from core.validation import validate_url_https, safe_error, build_validating_opener
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 EPSS_API = "https://api.first.org/data/v1/epss"
 KEV_API = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 GHSA_API = "https://api.github.com/advisories"
 OSV_API = "https://api.osv.dev/v1"
-_SAFE_OPENER = urllib.request.build_opener(urllib.request.HTTPSHandler)
+_SAFE_OPENER = build_validating_opener()
 
 _HEADERS = {"User-Agent": "security-tools-pro-mcp/1.0", "Accept": "application/json"}
 
@@ -99,6 +100,20 @@ def _fetch_post(url: str, body: dict, ttl: float = 3600.0, bucket: str = "defaul
         except Exception:
             return None
     return None
+
+
+def get_trending(min_epss: float = 0.3, limit: int = 30) -> list[dict] | None:
+    """Trending CVEs by EPSS score. Returns list of {cve, epss, percentile} or None on fetch failure."""
+    if limit <= 0 or limit > 100:
+        limit = 30
+    data = _fetch(
+        f"{EPSS_API}?order=epss&limit={limit}",
+        ttl=1800.0, cache_key="epss:trending", bucket="epss",
+    )
+    if data is None:
+        return None
+    entries = data.get("data", [])
+    return [e for e in entries if float(e.get("epss", 0)) >= min_epss]
 
 
 def _parse_cvss(metrics: dict) -> tuple[float | None, Severity, str]:
@@ -487,11 +502,15 @@ def prioritize_cves(cve_ids: list[str], weights: dict | None = None) -> list[dic
         return []
     if len(cve_ids) > 50:
         cve_ids = cve_ids[:50]
-    epss_results = epss_score(cve_ids)
-    kev_results = kev_check(cve_ids)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        epss_fut = pool.submit(epss_score, cve_ids)
+        kev_fut = pool.submit(kev_check, cve_ids)
+        nvd_futs = {cid: pool.submit(nvd_get, cid) for cid in cve_ids}
+        epss_results = epss_fut.result()
+        kev_results = kev_fut.result()
     results = []
     for cve_id in cve_ids:
-        cve = nvd_get(cve_id)
+        cve = nvd_futs[cve_id].result()
         if cve is None:
             results.append({"id": cve_id, "error": "Not found in NVD", "risk_score": 0, "cvss_score": None, "severity": "INFO", "epss_score": 0, "epss_percentile": 0, "in_kev": False, "exploit_available": False, "exploit_count": 0, "cwe_ids": [], "affected_products": [], "references": [], "description": "", "risk_factors": ["Not found in NVD"]})
             continue
@@ -573,8 +592,11 @@ def dump_enriched_recent(days: int = 7, severity: str | None = None, limit: int 
     if not cves:
         return []
     cve_ids = [c.id for c in cves]
-    epss_results = epss_score(cve_ids)
-    kev_results = kev_check(cve_ids)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        epss_fut = pool.submit(epss_score, cve_ids)
+        kev_fut = pool.submit(kev_check, cve_ids)
+        epss_results = epss_fut.result()
+        kev_results = kev_fut.result()
     results = []
     for cve in cves:
         cve.epss_score = float(epss_results.get(cve.id, {"epss": 0}).get("epss", 0))

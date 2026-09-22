@@ -1,5 +1,6 @@
 import os
 import pytest
+import urllib.request
 from pathlib import Path
 
 from core.validation import (
@@ -17,6 +18,8 @@ from core.validation import (
     validate_severity,
     validate_directory,
     safe_error,
+    resolve_validated_host,
+    build_validating_opener,
 )
 
 
@@ -311,6 +314,55 @@ class TestValidateDirectory:
         f.write_text("hello")
         with pytest.raises(ValueError, match="Not a directory"):
             validate_directory(str(f))
+
+
+class TestResolveValidatedHost:
+    def test_rejects_private_ip_directly(self):
+        with pytest.raises(ValueError, match="internal"):
+            resolve_validated_host("192.168.1.1")
+
+    def test_rejects_localhost(self):
+        with pytest.raises(ValueError, match="internal"):
+            resolve_validated_host("localhost")
+
+    def test_rejects_empty(self):
+        with pytest.raises(ValueError, match="Empty"):
+            resolve_validated_host("")
+
+    def test_rejects_private_only_resolution(self, monkeypatch):
+        import core.validation as v
+        monkeypatch.setattr(v.socket, "getaddrinfo", lambda h, p: [(v.socket.AF_INET, None, None, "", ("10.0.0.5", 0))])
+        with pytest.raises(ValueError, match="private"):
+            resolve_validated_host("evil.example.com")
+
+    def test_accepts_public_resolution(self, monkeypatch):
+        import core.validation as v
+        monkeypatch.setattr(v.socket, "getaddrinfo", lambda h, p: [(v.socket.AF_INET, None, None, "", ("93.184.216.34", 0))])
+        assert resolve_validated_host("example.com") == "93.184.216.34"
+
+    def test_prefers_public_over_private(self, monkeypatch):
+        import core.validation as v
+        monkeypatch.setattr(v.socket, "getaddrinfo", lambda h, p: [
+            (v.socket.AF_INET, None, None, "", ("10.0.0.5", 0)),
+            (v.socket.AF_INET, None, None, "", ("93.184.216.34", 0)),
+        ])
+        assert resolve_validated_host("example.com") == "93.184.216.34"
+
+
+class TestValidatingOpener:
+    def test_opener_blocks_private_ip_at_connect(self, monkeypatch):
+        import core.validation as v
+        monkeypatch.setattr(v, "resolve_validated_host", lambda h: (_ for _ in ()).throw(ValueError("blocked private")))
+        opener = build_validating_opener()
+        req = urllib.request.Request("http://192.168.1.1/x")
+        with pytest.raises(ValueError, match="blocked private"):
+            opener.open(req, timeout=1)
+
+    def test_opener_handlers_installed(self):
+        opener = build_validating_opener()
+        handlers = [type(h).__name__ for h in opener.handlers]
+        assert "_ValidatingHTTPHandler" in handlers
+        assert "_ValidatingHTTPSHandler" in handlers
 
 
 class TestSafeError:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import re
 import shlex
 import socket
+import urllib.request
 from urllib.parse import urlparse
 
 
@@ -85,6 +87,7 @@ def _is_private_ip(host: str) -> bool:
 
 
 def validate_url_https(url: str, require_https: bool = False) -> str:
+    """Validate URL scheme/host. Kept name for API stability (tests patch it)."""
     parsed_scheme = url.split("://")[0].lower() if "://" in url else ""
     if require_https and parsed_scheme != "https":
         raise ValueError(f"Only HTTPS URLs are allowed. Blocked scheme: {parsed_scheme or 'none'}")
@@ -103,6 +106,63 @@ def validate_url_https(url: str, require_https: bool = False) -> str:
         raise ValueError(f"Blocked internal hostname: {hostname}")
     _check_dns_resolution(hostname)
     return url
+
+
+def resolve_validated_host(hostname: str) -> str:
+    """Resolve hostname to a validated public IP (anti DNS-rebinding).
+
+    Returns the first public address, or raises ValueError if the hostname
+    resolves only to private/internal addresses. Callers should connect to
+    the returned IP (with Host header / SNI as needed) to close the TOCTOU
+    gap between validation-time DNS and connection-time DNS.
+    """
+    if not hostname:
+        raise ValueError("Empty hostname")
+    if _is_private_ip(hostname) or hostname in _BLOCKED_HOSTNAMES:
+        raise ValueError(f"Blocked internal host: {hostname}")
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as e:
+        raise ValueError(f"DNS resolution failed for {hostname!r}: {e}")
+    for info in infos:
+        addr = info[4][0]
+        if not _is_private_ip(addr):
+            return addr
+    raise ValueError(f"Hostname {hostname!r} resolves only to private/internal IPs")
+
+
+class _ValidatingHTTPConnection(http.client.HTTPConnection):
+    """Connection that rejects private/internal IPs at connect time.
+    # ponytail: microsecond TOCTOU remains between check and super().connect();
+    # full IP-pinning (connect-to-IP + Host header) if a real rebinding attack matters.
+    """
+
+    def connect(self):
+        resolve_validated_host(self.host)
+        super().connect()
+
+
+class _ValidatingHTTPSConnection(http.client.HTTPSConnection):
+    def connect(self):
+        resolve_validated_host(self.host)
+        super().connect()
+
+
+class _ValidatingHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_ValidatingHTTPConnection, req)
+
+
+class _ValidatingHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_ValidatingHTTPSConnection, req, context=self._context)
+
+
+def build_validating_opener(extra_handlers: tuple = ()) -> urllib.request.OpenerDirector:
+    """Opener whose connections reject private/internal IPs at connect time (anti DNS-rebinding)."""
+    return urllib.request.build_opener(
+        _ValidatingHTTPHandler, _ValidatingHTTPSHandler, *extra_handlers
+    )
 
 
 DNS_RECORD_TYPES = {"A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "ANY", "PTR", "SRV", "CAA"}

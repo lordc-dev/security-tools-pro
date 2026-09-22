@@ -100,7 +100,7 @@ def dns_reverse(ip: str) -> str:
 
 def http_headers(url: str, _method: str = "HEAD") -> str:
     """Fetch HTTP headers for a URL. Checks security headers (HSTS, CSP, X-Frame-Options, etc.)."""
-    from core.validation import validate_url_https, validate_host
+    from core.validation import validate_url_https, validate_host, build_validating_opener
     try:
         validate_url_https(url, require_https=True)
     except ValueError as e:
@@ -117,7 +117,7 @@ def http_headers(url: str, _method: str = "HEAD") -> str:
                 except ValueError:
                     raise urllib.error.URLError(f"Redirect blocked: {newurl}")
                 return super().redirect_request(req, fp, code, msg, headers, newurl)
-        safe_opener = urllib.request.build_opener(_RedirectValidator)
+        safe_opener = build_validating_opener((_RedirectValidator,))
         try:
             req = urllib.request.Request(url, method="HEAD")
             with safe_opener.open(req, timeout=15) as resp:
