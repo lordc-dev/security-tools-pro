@@ -10,3 +10,4 @@ coverage.xml
 .opencode
 *.sarif
 .codegraph
+.understand-anything
